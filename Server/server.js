@@ -3,6 +3,10 @@
 // 역할: 이벤트 수신 → 안전 필터 → 기기 제어 → 로그 기록
 
 require("dotenv").config();
+console.log('[DEBUG] Token loaded:', 
+  process.env.SMARTTHINGS_TOKEN ? 
+    `OK (${process.env.SMARTTHINGS_TOKEN.length} chars, prefix=${process.env.SMARTTHINGS_TOKEN.slice(0,8)}...)` : 
+    'MISSING');
 const express = require("express");
 const { EVENT_CONFIG } = require("./src/config");
 const { HANDLERS } = require("./src/eventHandler");
