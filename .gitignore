@@ -1,0 +1,55 @@
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+
+# IDE and generated project files
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.sln
+*.user
+*.pidb
+*.booproj
+*.svd
+
+# Local Codex/MCP state
+.codex/
+.mcp.json
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# SmartThings secrets and runtime logs
+.env
+.env.*
+!.env.example
+SmartThings_server/logs/
+
+# Unity/editor temporary files
+*.tmp
+*.bak
+*.pid
+*.pidb
+*.pdb
+sysinfo.txt
+
+# Build artifacts
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Large archives
+*.7z
+*.zip
+*.tar
+*.tar.gz
