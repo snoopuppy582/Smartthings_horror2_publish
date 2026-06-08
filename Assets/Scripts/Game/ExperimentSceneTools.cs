@@ -1093,7 +1093,7 @@ public static class ExperimentSceneTools
         GameObject objective = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         objective.name = "SecondFloorObjective";
         Undo.RegisterCreatedObjectUndo(objective, "Create SecondFloorObjective");
-        objective.transform.position = new Vector3(-19.2f, 1.4f, -17.6f);
+        objective.transform.position = new Vector3(-24f, 0.5f, -13.6f);
         objective.transform.localScale = Vector3.one * 0.55f;
 
         Renderer renderer = objective.GetComponent<Renderer>();
@@ -1117,7 +1117,7 @@ public static class ExperimentSceneTools
     private static void TuneObjective(GameObject objective)
     {
         Undo.RecordObject(objective.transform, "Tune Objective Transform");
-        objective.transform.position = new Vector3(-19.2f, 1.4f, -17.6f);
+        objective.transform.position = new Vector3(-24f, 0.5f, -13.6f);
         if (objective.transform.localScale.x < 0.5f)
             objective.transform.localScale = Vector3.one * 0.55f;
 
@@ -1186,18 +1186,6 @@ public static class ExperimentSceneTools
             Color.white,
             "02:00");
 
-        Text objective = GetOrCreateText(
-            root,
-            "ExperimentObjectiveText_Auto",
-            new Vector2(0f, 1f),
-            new Vector2(0f, 1f),
-            new Vector2(24f, -70f),
-            new Vector2(520f, 54f),
-            22,
-            TextAnchor.MiddleLeft,
-            new Color(0.85f, 0.95f, 1f, 1f),
-            "Recover the 2F device part.");
-
         GameObject success = GetOrCreateResultPanel(root, "ExperimentSuccessPanel_Auto", "Mission Success", new Color(0.03f, 0.32f, 0.2f, 0.84f));
         GameObject failed = GetOrCreateResultPanel(root, "ExperimentFailedPanel_Auto", "Mission Failed", new Color(0.35f, 0.04f, 0.04f, 0.84f));
         Image damageVignette = GetOrCreateDamageVignette(root);
@@ -1210,10 +1198,8 @@ public static class ExperimentSceneTools
             source = Undo.AddComponent<AudioSource>(director.gameObject);
 
         SetSerializedObjectRef(director, "timerText", timer);
-        SetSerializedObjectRef(director, "objectiveText", objective);
         SetSerializedObjectRef(director, "successPanel", success);
         SetSerializedObjectRef(director, "failedPanel", failed);
-        SetSerializedString(director, "objectiveLabel", "Recover the 2F device part.");
         SetSerializedFloat(director, "resultRecoveryDelaySec", 2.5f);
         SetSerializedObjectRef(director, "audioSource", source);
 

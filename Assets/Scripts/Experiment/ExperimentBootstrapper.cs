@@ -75,6 +75,10 @@ public static class ExperimentBootstrapper
         EnsureExternalHorrorAudio();
         EnsureRuntimeWatchdog();
         EnsurePlayModeSmokeRunner();
+
+        // startOnPlay=false 등 어떤 이유로든 세션이 시작 안 됐으면 강제 시작 (타이머 보장)
+        if (ExperimentDirector.Instance != null && !ExperimentDirector.Instance.IsRunning)
+            ExperimentDirector.Instance.BeginSession();
     }
 
     private static void EnsureComponent<T>(string objectName) where T : Component
@@ -810,7 +814,7 @@ public static class ExperimentBootstrapper
 
         GameObject objective = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         objective.name = "SecondFloorObjective_Auto";
-        objective.transform.position = new Vector3(-24f, 1.4f, -12f);
+        objective.transform.position = new Vector3(-24f, 0.5f, -13.6f);
         objective.transform.localScale = Vector3.one * 0.55f;
 
         Renderer renderer = objective.GetComponent<Renderer>();
@@ -888,7 +892,7 @@ public static class ExperimentBootstrapper
 
     private static void TuneObjective(GameObject objective)
     {
-        objective.transform.position = new Vector3(-24f, 1.4f, -12f);
+        objective.transform.position = new Vector3(-24f, 0.5f, -13.6f);
         if (objective.transform.localScale.x < 0.5f)
             objective.transform.localScale = Vector3.one * 0.55f;
 

@@ -70,7 +70,7 @@ const FALLBACK_PLANS = {
   blackout: {
     plan_id: 'blackout',
     actions: [
-      { device: 'smart_light', type: 'setSwitch', value: 'off', duration_ms: 700 },
+      { device: 'smart_light', type: 'setSwitch', value: 'off'},
       { device: 'fan_plug', type: 'setSwitch', value: 'off' },
       { type: 'restore', device: 'all' },
     ],

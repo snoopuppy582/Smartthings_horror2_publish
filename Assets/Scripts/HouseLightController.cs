@@ -31,6 +31,53 @@ public class HouseLightController : MonoBehaviour
     public void Blackout() => StartFade(false); // 암전 (recovery 전까지 유지)
     public void Recover()  => StartFade(true);  // 기본 밝기 복구
 
+    // 이벤트명으로 조명 반응 분기
+    public void ReactToEvent(string eventId)
+    {
+        switch (eventId)
+        {
+            case "chase":         SetIntensityScale(0.2f); break;
+            case "player_hit":    StartPlayerHitFlash();   break;
+            case "mission_success": SetIntensityScale(0.7f); break;
+            case "mission_failed":  SetIntensityScale(0.3f); break;
+            case "recovery":      Recover();               break;
+            case "blackout":      Blackout();              break;
+        }
+    }
+
+    // originalIntensities 기준 배수로 즉시 적용
+    public void SetIntensityScale(float scale)
+    {
+        if (fadeRoutine != null) StopCoroutine(fadeRoutine);
+        for (int i = 0; i < lights.Length; i++)
+            lights[i].intensity = originalIntensities[i] * scale;
+    }
+
+    // player_hit: 0.2 → 0.7 → 0.2 순으로 빠르게 전환
+    private void StartPlayerHitFlash()
+    {
+        if (fadeRoutine != null) StopCoroutine(fadeRoutine);
+        fadeRoutine = StartCoroutine(PlayerHitFlashRoutine());
+    }
+
+    private IEnumerator PlayerHitFlashRoutine()
+    {
+        for (int i = 0; i < lights.Length; i++)
+            lights[i].intensity = originalIntensities[i] * 0.2f;
+
+        yield return new WaitForSeconds(0.15f);
+
+        for (int i = 0; i < lights.Length; i++)
+            lights[i].intensity = originalIntensities[i] * 0.7f;
+
+        yield return new WaitForSeconds(0.15f);
+
+        for (int i = 0; i < lights.Length; i++)
+            lights[i].intensity = originalIntensities[i] * 0.2f;
+
+        fadeRoutine = null;
+    }
+
     private void StartFade(bool toOriginal)
     {
         if (fadeRoutine != null) StopCoroutine(fadeRoutine);

@@ -62,7 +62,7 @@ public class ExperimentDirector : MonoBehaviour
     private static readonly Dictionary<DefaultSoundCue, AudioClip> s_defaultClips = new();
     private ExperimentLogger _logger;
     private string _sessionId;
-    private float _startTime;
+    private float _startTime = -1f;
     private bool _running;
     private bool _ended;
     private int _hitCount;
@@ -81,7 +81,7 @@ public class ExperimentDirector : MonoBehaviour
 
     public bool IsRunning => _running && !_ended;
     public int HitCount => _hitCount;
-    public float ElapsedSec => _startTime > 0f ? Time.time - _startTime : 0f;
+    public float ElapsedSec => _startTime >= 0f ? Time.time - _startTime : 0f;
     public string SessionId => _sessionId;
     public string ConditionName => condition.ToString();
     public bool IotEnabled => condition == ExperimentCondition.GameWithIoT;
@@ -103,7 +103,7 @@ public class ExperimentDirector : MonoBehaviour
 
     private void Start()
     {
-        if (startOnPlay)
+        if (startOnPlay && !_running)
             BeginSession();
     }
 
@@ -291,6 +291,7 @@ public class ExperimentDirector : MonoBehaviour
         FindFirstObjectByType<LanternController>()?.ReactToExperimentEvent(eventId);
         FindFirstObjectByType<ProceduralHorrorAmbience>()?.ReactToExperimentEvent(eventId);
         FindFirstObjectByType<AmbientAudioManager>()?.ReactToExperimentEvent(eventId);
+        FindFirstObjectByType<HouseLightController>()?.ReactToEvent(eventId);
     }
 
     private void SendExperimentEvent(string eventId, string source, string detail, bool bypassLocalCooldown = false)
