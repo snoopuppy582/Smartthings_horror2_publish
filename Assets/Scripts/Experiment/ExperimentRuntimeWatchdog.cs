@@ -90,6 +90,10 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
         RequireNamedRuntimeObject("SecondFloorAccessRamp_Auto");
         RequireNamedRuntimeObject("SecondFloorWalkableFloor_Auto");
         RequireNamedRuntimeObject("SecondFloorStairLanding_Auto");
+        RequireNamedRuntimeObject("SecondFloorBoundaryWall_Auto_North");
+        RequireNamedRuntimeObject("SecondFloorBoundaryWall_Auto_South");
+        RequireNamedRuntimeObject("SecondFloorBoundaryWall_Auto_East");
+        RequireNamedRuntimeObject("SecondFloorBoundaryWall_Auto_West");
         RequireNamedRuntimeObject("DoorEntranceThresholdBridge_Auto");
         RequireNamedRuntimeObject("DoorEntranceRampOutside_Auto");
         RequireNamedRuntimeObject("DoorEntranceRampInside_Auto");
@@ -165,6 +169,9 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
         KillerPlayerCollisionBypass collisionBypass = killer.GetComponent<KillerPlayerCollisionBypass>();
         if (collisionBypass == null || !collisionBypass.IsConfigured)
             Warn("killer_collision_bypass_missing", "KillerPlayerCollisionBypass is missing or not configured; killer colliders may block the player route.");
+
+        if (!killer.AvoidsStairRouteDuringChase)
+            Warn("killer_stair_safety_disabled", "Killer stair/2F safety hold is disabled; forced chase may enter the stair route.");
 
         CheckPath(agent.transform.position, player.transform.position, "killer_to_player_start");
         CheckPath(agent.transform.position, objective.transform.position, "killer_to_objective_area");

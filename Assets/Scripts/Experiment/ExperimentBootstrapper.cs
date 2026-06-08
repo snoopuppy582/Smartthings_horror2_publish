@@ -30,6 +30,7 @@ public static class ExperimentBootstrapper
         EnsureKillerExperimentSetup();
         EnsureSecondFloorAccessRamp();
         EnsureSecondFloorWalkableColliders();
+        EnsureSecondFloorBoundaryColliders();
         EnsureDoorwayAccessAssist();
         EnsureDoorwayHouseCollisionGate();
         EnsureStairHouseCollisionGate();
@@ -85,15 +86,44 @@ public static class ExperimentBootstrapper
 
         CreateOrTuneInvisibleBox(
             "SecondFloorWalkableFloor_Auto",
-            new Vector3(-24.25f, 2.94f, -15.05f),
+            new Vector3(-23.75f, 2.94f, -14.85f),
             Quaternion.identity,
-            new Vector3(7.2f, 0.18f, 6.1f));
+            new Vector3(4.9f, 0.18f, 4.9f));
 
         CreateOrTuneInvisibleBox(
             "SecondFloorStairLanding_Auto",
-            new Vector3(-27.15f, 2.94f, -17.05f),
+            new Vector3(-27.35f, 2.94f, -17.25f),
             Quaternion.identity,
-            new Vector3(1.6f, 0.18f, 1.4f));
+            new Vector3(0.45f, 0.18f, 0.45f));
+    }
+
+    private static void EnsureSecondFloorBoundaryColliders()
+    {
+        if (SceneManager.GetActiveScene().name != "MainScene") return;
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorBoundaryWall_Auto_North",
+            new Vector3(-23.75f, 3.95f, -12.25f),
+            Quaternion.identity,
+            new Vector3(5.2f, 2.0f, 0.22f));
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorBoundaryWall_Auto_South",
+            new Vector3(-23.75f, 3.95f, -17.45f),
+            Quaternion.identity,
+            new Vector3(5.2f, 2.0f, 0.22f));
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorBoundaryWall_Auto_East",
+            new Vector3(-21.15f, 3.95f, -14.85f),
+            Quaternion.identity,
+            new Vector3(0.22f, 2.0f, 5.2f));
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorBoundaryWall_Auto_West",
+            new Vector3(-26.35f, 3.95f, -12.85f),
+            Quaternion.identity,
+            new Vector3(0.22f, 2.0f, 1.0f));
     }
 
     private static void EnsureDoorwayAccessAssist()
@@ -163,7 +193,7 @@ public static class ExperimentBootstrapper
             gate = new GameObject("StairHouseCollisionGate_Auto");
 
         gate.transform.SetPositionAndRotation(
-            new Vector3(-27.3f, 1.4f, -16.8f),
+            new Vector3(-26.1f, 1.55f, -16.35f),
             Quaternion.identity);
         gate.transform.localScale = Vector3.one;
 
@@ -171,7 +201,7 @@ public static class ExperimentBootstrapper
         if (collisionGate == null)
             collisionGate = gate.AddComponent<DoorwayHouseCollisionGate>();
 
-        collisionGate.Configure(PrimaryHouseColliderName, new Vector3(5.2f, 4.2f, 4.8f), new Vector3(0f, 1.15f, 0f));
+        collisionGate.Configure(PrimaryHouseColliderName, new Vector3(7.6f, 4.9f, 6.6f), new Vector3(0f, 1.25f, 0f));
     }
 
     private static void EnsureStairTraversalAssistZone()
@@ -183,7 +213,7 @@ public static class ExperimentBootstrapper
             zone = new GameObject("StairTraversalAssistZone_Auto");
 
         zone.transform.SetPositionAndRotation(
-            new Vector3(-27.3f, 1.4f, -16.8f),
+            new Vector3(-26.1f, 1.55f, -16.35f),
             Quaternion.identity);
         zone.transform.localScale = Vector3.one;
 
@@ -194,8 +224,8 @@ public static class ExperimentBootstrapper
         assist.Configure(
             StairAssistBaseTop,
             StairAssistLandingTop,
-            new Vector3(5.4f, 4.4f, 5.2f),
-            new Vector3(0f, 1.15f, 0f));
+            new Vector3(7.6f, 4.9f, 6.6f),
+            new Vector3(0f, 1.25f, 0f));
     }
 
     private static void CreateOrTuneInvisibleBox(string objectName, Vector3 position, Quaternion rotation, Vector3 scale)

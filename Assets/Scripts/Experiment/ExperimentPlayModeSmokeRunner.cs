@@ -260,6 +260,10 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         RequireNamedObject(report, "StairTraversalAssistZone_Auto", false);
         RequireNamedObject(report, "SecondFloorWalkableFloor_Auto", false);
         RequireNamedObject(report, "SecondFloorStairLanding_Auto", false);
+        RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_North", false);
+        RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_South", false);
+        RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_East", false);
+        RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_West", false);
         RequireNamedObject(report, "ExperimentMarker_StairsReached_Auto", false);
         RequireNamedObject(report, "ExperimentMarker_SecondFloorCue_Auto", false);
         RequireNamedObject(report, "ExperimentMarker_ObjectiveArea_Auto", false);
@@ -309,7 +313,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
             report.errors.Add("StairHouseCollisionGate_Auto must have a trigger BoxCollider.");
         if (collisionGate.HouseColliderName != PrimaryHouseColliderName)
             report.errors.Add($"StairHouseCollisionGate_Auto targets {collisionGate.HouseColliderName}, expected {PrimaryHouseColliderName}.");
-        if (collisionGate.GateSize.x < 5.0f || collisionGate.GateSize.y < 4.0f || collisionGate.GateSize.z < 4.5f)
+        if (collisionGate.GateSize.x < 7.0f || collisionGate.GateSize.y < 4.5f || collisionGate.GateSize.z < 6.0f)
             report.errors.Add($"StairHouseCollisionGate_Auto is too small for the stair capsule route: size={collisionGate.GateSize}.");
     }
 
@@ -489,6 +493,8 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
             report.errors.Add($"Killer post-hit backoff is too short: {killer.PostHitBackoffDistance:0.0}m/{killer.PostHitBackoffDurationSec:0.0}s.");
         if (killer.KillerNearReportIntervalSec < 15f)
             report.errors.Add($"Killer near report interval is too short for IoT cooldowns: {killer.KillerNearReportIntervalSec:0.0}s.");
+        if (!killer.AvoidsStairRouteDuringChase)
+            report.errors.Add("Killer stair/2F safety hold is disabled; forced chase may warp into the stair route.");
 
         if (!agent.isOnNavMesh)
         {
@@ -564,10 +570,14 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         if (objectName == PrimaryHouseColliderName)
             return IsConfiguredHouseCollisionGate("StairHouseCollisionGate_Auto");
 
+        if (objectName.StartsWith("SecondFloorWalkableFloor") ||
+            objectName.StartsWith("SecondFloorStairLanding"))
+        {
+            return hit.bounds.max.y < bottom.y - radius * 0.35f;
+        }
+
         return objectName.StartsWith("SecondFloorAccessRamp") ||
                objectName.StartsWith("SecondFloorAccessStep") ||
-               objectName.StartsWith("SecondFloorWalkableFloor") ||
-               objectName.StartsWith("SecondFloorStairLanding") ||
                objectName.StartsWith("ExperimentMarker") ||
                objectName.StartsWith("SecondFloorObjective");
     }

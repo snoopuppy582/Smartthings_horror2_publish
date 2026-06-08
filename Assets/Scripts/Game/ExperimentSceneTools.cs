@@ -50,6 +50,7 @@ public static class ExperimentSceneTools
         EnsureKillerExperimentSetup();
         EnsureSecondFloorAccessRamp();
         EnsureSecondFloorWalkableColliders();
+        EnsureSecondFloorBoundaryColliders();
         EnsureDoorwayAccessAssist();
         EnsureDoorwayHouseCollisionGate();
         EnsureStairHouseCollisionGate();
@@ -353,6 +354,12 @@ public static class ExperimentSceneTools
         SetSerializedFloat(killer, "forceChaseRelocationSearchRadius", 3f);
         SetSerializedFloat(killer, "forceChaseRelocationMinDistance", 4f);
         SetSerializedFloat(killer, "forceChaseRelocationVerticalTolerance", 0.85f);
+        SetSerializedBool(killer, "avoidStairRouteDuringChase", true);
+        SetSerializedVector3(killer, "stairSafetyCenter", new Vector3(-25.9f, 2.15f, -16.2f));
+        SetSerializedVector3(killer, "stairSafetySize", new Vector3(8.4f, 4.9f, 7.2f));
+        SetSerializedVector3(killer, "stairSafetyHoldPosition", new Vector3(-31.2f, 0.15f, -21.2f));
+        SetSerializedFloat(killer, "stairSafetyHoldMinSec", 1.25f);
+        SetSerializedFloat(killer, "stairSafetyHoldSampleRadius", 4f);
 
         KillerPlayerCollisionBypass collisionBypass = killer.GetComponent<KillerPlayerCollisionBypass>();
         if (collisionBypass == null)
@@ -398,15 +405,42 @@ public static class ExperimentSceneTools
     {
         CreateOrTuneInvisibleBox(
             "SecondFloorWalkableFloor_Auto",
-            new Vector3(-24.25f, 2.94f, -15.05f),
+            new Vector3(-23.75f, 2.94f, -14.85f),
             Quaternion.identity,
-            new Vector3(7.2f, 0.18f, 6.1f));
+            new Vector3(4.9f, 0.18f, 4.9f));
 
         CreateOrTuneInvisibleBox(
             "SecondFloorStairLanding_Auto",
-            new Vector3(-27.15f, 2.94f, -17.05f),
+            new Vector3(-27.35f, 2.94f, -17.25f),
             Quaternion.identity,
-            new Vector3(1.6f, 0.18f, 1.4f));
+            new Vector3(0.45f, 0.18f, 0.45f));
+    }
+
+    private static void EnsureSecondFloorBoundaryColliders()
+    {
+        CreateOrTuneInvisibleBox(
+            "SecondFloorBoundaryWall_Auto_North",
+            new Vector3(-23.75f, 3.95f, -12.25f),
+            Quaternion.identity,
+            new Vector3(5.2f, 2.0f, 0.22f));
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorBoundaryWall_Auto_South",
+            new Vector3(-23.75f, 3.95f, -17.45f),
+            Quaternion.identity,
+            new Vector3(5.2f, 2.0f, 0.22f));
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorBoundaryWall_Auto_East",
+            new Vector3(-21.15f, 3.95f, -14.85f),
+            Quaternion.identity,
+            new Vector3(0.22f, 2.0f, 5.2f));
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorBoundaryWall_Auto_West",
+            new Vector3(-26.35f, 3.95f, -12.85f),
+            Quaternion.identity,
+            new Vector3(0.22f, 2.0f, 1.0f));
     }
 
     private static void EnsureDoorwayAccessAssist()
@@ -480,7 +514,7 @@ public static class ExperimentSceneTools
 
         Undo.RecordObject(gate.transform, "Tune StairHouseCollisionGate_Auto");
         gate.transform.SetPositionAndRotation(
-            new Vector3(-27.3f, 1.4f, -16.8f),
+            new Vector3(-26.1f, 1.55f, -16.35f),
             Quaternion.identity);
         gate.transform.localScale = Vector3.one;
 
@@ -488,7 +522,7 @@ public static class ExperimentSceneTools
         if (collisionGate == null)
             collisionGate = Undo.AddComponent<DoorwayHouseCollisionGate>(gate);
 
-        collisionGate.Configure(PrimaryHouseColliderName, new Vector3(5.2f, 4.2f, 4.8f), new Vector3(0f, 1.15f, 0f));
+        collisionGate.Configure(PrimaryHouseColliderName, new Vector3(7.6f, 4.9f, 6.6f), new Vector3(0f, 1.25f, 0f));
         EditorUtility.SetDirty(collisionGate);
         EditorUtility.SetDirty(gate);
     }
@@ -504,7 +538,7 @@ public static class ExperimentSceneTools
 
         Undo.RecordObject(zone.transform, "Tune StairTraversalAssistZone_Auto");
         zone.transform.SetPositionAndRotation(
-            new Vector3(-27.3f, 1.4f, -16.8f),
+            new Vector3(-26.1f, 1.55f, -16.35f),
             Quaternion.identity);
         zone.transform.localScale = Vector3.one;
 
@@ -515,8 +549,8 @@ public static class ExperimentSceneTools
         assist.Configure(
             StairAssistBaseTop,
             StairAssistLandingTop,
-            new Vector3(5.4f, 4.4f, 5.2f),
-            new Vector3(0f, 1.15f, 0f));
+            new Vector3(7.6f, 4.9f, 6.6f),
+            new Vector3(0f, 1.25f, 0f));
         EditorUtility.SetDirty(assist);
         EditorUtility.SetDirty(zone);
     }
@@ -1267,6 +1301,17 @@ public static class ExperimentSceneTools
         if (property == null) return;
 
         property.boolValue = value;
+        serializedObject.ApplyModifiedProperties();
+        EditorUtility.SetDirty(target);
+    }
+
+    private static void SetSerializedVector3(UnityEngine.Object target, string propertyName, Vector3 value)
+    {
+        SerializedObject serializedObject = new SerializedObject(target);
+        SerializedProperty property = serializedObject.FindProperty(propertyName);
+        if (property == null) return;
+
+        property.vector3Value = value;
         serializedObject.ApplyModifiedProperties();
         EditorUtility.SetDirty(target);
     }

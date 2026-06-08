@@ -42,6 +42,14 @@ public class KillerAI : MonoBehaviour
     [SerializeField] private float forceChaseRelocationMinDistance = 4f;
     [SerializeField] private float forceChaseRelocationVerticalTolerance = 0.85f;
 
+    [Header("계단/2층 안전 구역")]
+    [SerializeField] private bool avoidStairRouteDuringChase = true;
+    [SerializeField] private Vector3 stairSafetyCenter = new Vector3(-25.9f, 2.15f, -16.2f);
+    [SerializeField] private Vector3 stairSafetySize = new Vector3(8.4f, 4.9f, 7.2f);
+    [SerializeField] private Vector3 stairSafetyHoldPosition = new Vector3(-31.2f, 0.15f, -21.2f);
+    [SerializeField] private float stairSafetyHoldMinSec = 1.25f;
+    [SerializeField] private float stairSafetyHoldSampleRadius = 4f;
+
     [Header("배회 지점 (비우면 제자리 대기)")]
     [SerializeField] private Transform[] patrolPoints;
 
@@ -62,6 +70,8 @@ public class KillerAI : MonoBehaviour
     private bool isBackingOff;
     private float backoffEndTime;
     private float forcedChaseUntil = -999f;
+    private bool isHoldingForStairSafety;
+    private float stairSafetyHoldUntil = -999f;
     private NavMeshPath attackPath;
     private bool hasAttackTrigger;
     private bool hasIdleParam;
@@ -78,6 +88,7 @@ public class KillerAI : MonoBehaviour
     public float PostHitBackoffDurationSec => postHitBackoffDurationSec;
     public float PostHitBackoffDistance => postHitBackoffDistance;
     public float KillerNearReportIntervalSec => killerNearReportInterval;
+    public bool AvoidsStairRouteDuringChase => avoidStairRouteDuringChase;
 
     private void Awake()
     {
@@ -132,6 +143,12 @@ public class KillerAI : MonoBehaviour
         forceChaseRelocationSearchRadius = 3f;
         forceChaseRelocationMinDistance = 4f;
         forceChaseRelocationVerticalTolerance = 0.85f;
+        avoidStairRouteDuringChase = true;
+        stairSafetyCenter = new Vector3(-25.9f, 2.15f, -16.2f);
+        stairSafetySize = new Vector3(8.4f, 4.9f, 7.2f);
+        stairSafetyHoldPosition = new Vector3(-31.2f, 0.15f, -21.2f);
+        stairSafetyHoldMinSec = 1.25f;
+        stairSafetyHoldSampleRadius = 4f;
 
         if (agent == null)
             agent = GetComponent<NavMeshAgent>();
@@ -170,6 +187,14 @@ public class KillerAI : MonoBehaviour
             UpdateAnimator(agent.velocity.magnitude);
             return;
         }
+
+        if (ShouldHoldForStairSafety())
+        {
+            UpdateStairSafetyHold();
+            UpdateAnimator(agent.velocity.magnitude);
+            return;
+        }
+        isHoldingForStairSafety = false;
 
         float dist = Vector3.Distance(transform.position, player.position);
         bool forceChaseActive = Time.time < forcedChaseUntil;
@@ -212,6 +237,12 @@ public class KillerAI : MonoBehaviour
         forcedChaseUntil = Mathf.Max(forcedChaseUntil, Time.time + Mathf.Max(0.1f, minDurationSec));
         isChasing = true;
         isBackingOff = false;
+        if (ShouldHoldForStairSafety())
+        {
+            UpdateStairSafetyHold();
+            return;
+        }
+
         TryRelocateForForcedChase();
         if (agent.enabled && agent.isOnNavMesh)
             agent.isStopped = false;
@@ -401,6 +432,9 @@ public class KillerAI : MonoBehaviour
         if (!relocateOnUnreachableForceChase || agent == null || !agent.enabled || player == null)
             return false;
 
+        if (ShouldHoldForStairSafety())
+            return false;
+
         if (agent.isOnNavMesh && HasCompletePath(transform.position, player.position, 2.5f))
             return false;
 
@@ -444,6 +478,9 @@ public class KillerAI : MonoBehaviour
                 if (Mathf.Abs(candidate.position.y - player.position.y) > forceChaseRelocationVerticalTolerance)
                     continue;
 
+                if (IsPointInsideStairSafetyVolume(candidate.position))
+                    continue;
+
                 if (Vector3.Distance(candidate.position, player.position) < forceChaseRelocationMinDistance)
                     continue;
 
@@ -456,6 +493,64 @@ public class KillerAI : MonoBehaviour
         }
 
         return false;
+    }
+
+    private bool ShouldHoldForStairSafety()
+    {
+        if (!avoidStairRouteDuringChase || player == null)
+            return false;
+
+        if (IsPointInsideStairSafetyVolume(player.position))
+            return true;
+
+        return isHoldingForStairSafety && Time.time < stairSafetyHoldUntil;
+    }
+
+    private void UpdateStairSafetyHold()
+    {
+        bool playerInside = player != null && IsPointInsideStairSafetyVolume(player.position);
+        if (playerInside)
+            stairSafetyHoldUntil = Mathf.Max(stairSafetyHoldUntil, Time.time + Mathf.Max(0.1f, stairSafetyHoldMinSec));
+        else if (Time.time >= stairSafetyHoldUntil)
+        {
+            isHoldingForStairSafety = false;
+            return;
+        }
+
+        isHoldingForStairSafety = true;
+        isChasing = true;
+
+        if (agent == null || !agent.enabled || !agent.isOnNavMesh)
+            return;
+
+        agent.isStopped = false;
+        agent.speed = walkSpeed;
+
+        if (!NavMesh.SamplePosition(stairSafetyHoldPosition, out NavMeshHit holdHit, stairSafetyHoldSampleRadius, agent.areaMask))
+            return;
+
+        if (IsPointInsideStairSafetyVolume(transform.position))
+        {
+            agent.Warp(holdHit.position);
+            return;
+        }
+
+        if (!HasCompletePath(transform.position, holdHit.position, 2f))
+        {
+            agent.Warp(holdHit.position);
+            return;
+        }
+
+        TrySetDestination(holdHit.position);
+    }
+
+    private bool IsPointInsideStairSafetyVolume(Vector3 point)
+    {
+        Vector3 half = stairSafetySize * 0.5f;
+        Vector3 offset = point - stairSafetyCenter;
+        return Mathf.Abs(offset.x) <= half.x &&
+               Mathf.Abs(offset.y) <= half.y &&
+               Mathf.Abs(offset.z) <= half.z;
     }
 
     private bool HasCompletePath(Vector3 from, Vector3 to, float targetSampleDistance)

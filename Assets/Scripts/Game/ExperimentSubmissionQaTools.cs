@@ -264,6 +264,10 @@ public static class ExperimentSubmissionQaTools
         RequireNamedObject(report, "StairTraversalAssistZone_Auto", warningOnly: false);
         RequireNamedObject(report, "SecondFloorWalkableFloor_Auto", warningOnly: false);
         RequireNamedObject(report, "SecondFloorStairLanding_Auto", warningOnly: false);
+        RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_North", warningOnly: false);
+        RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_South", warningOnly: false);
+        RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_East", warningOnly: false);
+        RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_West", warningOnly: false);
         RequireNamedObject(report, "ExperimentMarker_StairsReached_Auto", warningOnly: false);
         RequireNamedObject(report, "ExperimentMarker_SecondFloorCue_Auto", warningOnly: false);
         RequireNamedObject(report, "ExperimentMarker_ObjectiveArea_Auto", warningOnly: false);
@@ -312,6 +316,8 @@ public static class ExperimentSubmissionQaTools
             report.errors.Add("StairHouseCollisionGate_Auto must have a trigger BoxCollider.");
         if (collisionGate.HouseColliderName != PrimaryHouseColliderName)
             report.errors.Add($"StairHouseCollisionGate_Auto targets {collisionGate.HouseColliderName}, expected {PrimaryHouseColliderName}.");
+        if (collisionGate.GateSize.x < 7.0f || collisionGate.GateSize.y < 4.5f || collisionGate.GateSize.z < 6.0f)
+            report.errors.Add($"StairHouseCollisionGate_Auto is too small for the stair/2F transition route: size={collisionGate.GateSize}.");
     }
 
     private static void CheckPrimaryHouseCollider(QaReport report)
@@ -484,6 +490,8 @@ public static class ExperimentSubmissionQaTools
 
         RequireComponent<UnityEngine.AI.NavMeshAgent>(report, killer.gameObject, "Killer NavMeshAgent");
         RequireComponent<KillerPlayerCollisionBypass>(report, killer.gameObject, "KillerPlayerCollisionBypass");
+        if (!killer.AvoidsStairRouteDuringChase)
+            report.errors.Add("Killer stair/2F safety hold is disabled.");
         if (killer.GetComponentInChildren<Animator>(true) == null)
             report.warnings.Add("KillerAI has no Animator in children.");
 
