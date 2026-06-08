@@ -385,7 +385,7 @@ public static class ExperimentSceneTools
             width: 4.8f,
             thickness: 0.2f,
             overlap: 0.9f);
-        SetColliderTrigger("SecondFloorAccessRamp_Auto", false);
+        SetColliderTrigger("SecondFloorAccessRamp_Auto", true);
 
         CreateOrTuneStairAssistSteps();
 
@@ -396,6 +396,7 @@ public static class ExperimentSceneTools
             width: 4.2f,
             thickness: 0.18f,
             overlap: 0.65f);
+        SetColliderTrigger("SecondFloorAccessRamp_Landing_Auto", true);
 
         DisableStaleSecondFloorAccessRampSegments();
         DisableStaleSecondFloorAccessStepSegments();
@@ -414,6 +415,7 @@ public static class ExperimentSceneTools
             new Vector3(-27.35f, 2.94f, -17.25f),
             Quaternion.identity,
             new Vector3(0.45f, 0.18f, 0.45f));
+        SetColliderTrigger("SecondFloorStairLanding_Auto", true);
     }
 
     private static void EnsureSecondFloorBoundaryColliders()
@@ -548,7 +550,7 @@ public static class ExperimentSceneTools
 
         assist.Configure(
             StairAssistBaseTop,
-            StairAssistLandingTop,
+            StairAssistExitTop,
             new Vector3(7.6f, 4.9f, 6.6f),
             new Vector3(0f, 1.25f, 0f));
         EditorUtility.SetDirty(assist);

@@ -275,6 +275,7 @@ public static class ExperimentSubmissionQaTools
         CheckDoorwayCollisionGate(report);
         CheckStairHouseCollisionGate(report);
         CheckPrimaryHouseCollider(report);
+        CheckStairTransitionColliders(report);
         CheckSecondFloorSupport(report);
     }
 
@@ -358,7 +359,7 @@ public static class ExperimentSubmissionQaTools
         {
             new Vector3(-24.6f, 4.4f, -15.5f),
             new Vector3(-23.9f, 4.6f, -15.2f),
-            new Vector3(-27.35f, 4.2f, -17.25f),
+            new Vector3(-24.55f, 4.4f, -15.35f),
         };
 
         for (int i = 0; i < probePositions.Length; i++)
@@ -380,6 +381,27 @@ public static class ExperimentSubmissionQaTools
         }
 
         report.info.Add("Second floor support raycasts found solid walkable colliders.");
+    }
+
+    private static void CheckStairTransitionColliders(QaReport report)
+    {
+        RequireTriggerCollider(report, "SecondFloorAccessRamp_Auto");
+        RequireTriggerCollider(report, "SecondFloorAccessRamp_Landing_Auto");
+        RequireTriggerCollider(report, "SecondFloorStairLanding_Auto");
+    }
+
+    private static void RequireTriggerCollider(QaReport report, string objectName)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        Collider collider = obj != null ? obj.GetComponent<Collider>() : null;
+        if (collider == null)
+        {
+            report.errors.Add($"{objectName} has no Collider.");
+            return;
+        }
+
+        if (!collider.isTrigger)
+            report.errors.Add($"{objectName} must be a trigger so the stair route cannot become an invisible blocking floor.");
     }
 
     private static void CheckStairRouteCapsuleClearance(QaReport report, GameObject player, CharacterController controller)

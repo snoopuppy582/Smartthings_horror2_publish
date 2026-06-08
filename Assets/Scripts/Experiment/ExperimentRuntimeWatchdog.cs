@@ -102,6 +102,9 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
         RequireNamedRuntimeObject("StairTraversalAssistZone_Auto");
         RequireHouseCollisionGate("DoorwayHouseCollisionGate_Auto", "doorway_house_collision_gate");
         RequireHouseCollisionGate("StairHouseCollisionGate_Auto", "stair_house_collision_gate");
+        RequireTriggerCollider("SecondFloorAccessRamp_Auto", "stair_ramp_trigger");
+        RequireTriggerCollider("SecondFloorAccessRamp_Landing_Auto", "stair_ramp_landing_trigger");
+        RequireTriggerCollider("SecondFloorStairLanding_Auto", "stair_landing_trigger");
         RequirePrimaryHouseCollider();
         RequireNamedRuntimeObject("ExperimentMarker_StairsReached_Auto");
         RequireNamedRuntimeObject("ExperimentMarker_SecondFloorCue_Auto");
@@ -140,6 +143,20 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
 
         if (!gate.IsConfigured || gate.HouseColliderName != PrimaryHouseColliderName)
             Warn(code + "_invalid", $"{objectName} is not configured for the primary old-house collider.");
+    }
+
+    private void RequireTriggerCollider(string objectName, string code)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        Collider collider = obj != null ? obj.GetComponent<Collider>() : null;
+        if (collider == null)
+        {
+            Warn(code + "_missing", $"{objectName} has no Collider.");
+            return;
+        }
+
+        if (!collider.isTrigger)
+            Warn(code + "_solid", $"{objectName} is solid; stair transition may become an invisible blocking floor.");
     }
 
     private void CheckRouteState()
