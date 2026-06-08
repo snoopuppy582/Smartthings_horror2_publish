@@ -1,6 +1,6 @@
 # Submission Readiness
 
-This project currently passes the automated GameOnly and simulated GameWithIoT checks, including the timed 120-second scenario cues, primary old-house collider, doorway clearance gate, player lantern, procedural horror ambience, external template BGM/SFX, and second-floor support checks. Real SmartThings device verification still requires a local `.env` file with valid device credentials. IoT teammate setup is summarized in `IOT_TEAM_HANDOFF.md`.
+This project currently passes the automated GameOnly and simulated GameWithIoT checks, including the timed 120-second scenario cues, primary old-house collider, doorway/stair clearance gates, synthetic WASD traversal to 2F, visible KILLER placement, player lantern, procedural horror ambience, external template BGM/SFX, and second-floor support checks. Real SmartThings device verification still requires a local `.env` file with valid device credentials. IoT teammate setup is summarized in `IOT_TEAM_HANDOFF.md`.
 
 ## Current Completion Targets
 
@@ -11,9 +11,9 @@ The local build is considered submission-ready, excluding real-device evidence, 
 - GameOnly PlayMode smoke reports `success: true`, `errorCount: 0`, `warningCount: 0`.
 - GameWithIoT simulation smoke reports `success: true`, `errorCount: 0`, `warningCount: 0`, and accepted server requests for timed scenario events.
 - Doorway movement is verified by capsule probe, while the old-house mesh collider stays enabled for walls and floors.
-- Stair movement is verified by capsule probe from the lower stair approach through the landing to the 2F objective route.
+- Stair movement is verified by capsule probe and synthetic FirstPersonController WASD movement from the lower stair approach through the landing to the 2F objective route.
 - 2F route and objective area have solid support colliders and do not fall through.
-- Killer setup includes a player collision bypass and vertical relocation guard so it cannot physically block the stair route or relocate onto a different floor during forced chase.
+- Killer setup includes visible renderers, deterministic placement near the house, a player collision bypass, and vertical relocation guard so it cannot physically block the stair route or relocate onto a different floor during forced chase.
 - Player lantern, procedural ambience, external exploration BGM, and chase BGM are verified in smoke reports.
 - Killer pathing reaches the player start and 2F objective route without NavMesh failure.
 - Timeout failure, objective success, result UI, and JSONL experiment logs are verified.
@@ -47,7 +47,7 @@ Tools > Experiment > Run Play Mode Smoke Test (GameWithIoT Simulation)
 Expected reports:
 
 - `Temp/experiment_submission_qa.json`: `errorCount` is `0`.
-- `Temp/experiment_playmode_smoke.json`: `success` is `true`, `errorCount` is `0`, and the report confirms doorway capsule clearance, stair route capsule clearance, primary house mesh collider, killer collision bypass, player lantern, procedural ambience playback/tension, external BGM switching to chase music, 2F support colliders, and timed events `ghost_hint`, `killer_near`, `blackout`, and `chase`.
+- `Temp/experiment_playmode_smoke.json`: `success` is `true`, `errorCount` is `0`, and the report confirms doorway capsule clearance, stair route capsule clearance, synthetic WASD traversal to 2F, primary house mesh collider, visible KILLER placement, killer collision bypass, player lantern, procedural ambience playback/tension, external BGM switching to chase music, 2F support colliders, and timed events `ghost_hint`, `killer_near`, `blackout`, and `chase`.
 - `Temp/experiment_playmode_iot_smoke.json`: `success` is `true`, `errorCount` is `0`, and the report confirms the same local traversal/audio/killer checks plus accepted server requests for the timed scenario.
 
 The QA report may warn that the SmartThings server is in simulation mode until real device credentials are configured.

@@ -68,15 +68,23 @@ public class FirstPersonController : MonoBehaviour
     private Vector3 _cameraLocalOrigin;
     private Vector2 _currentMoveInput;
     private Vector3 _currentMoveWorldDirection;
+    private bool _syntheticInputActive;
+    private Vector2 _syntheticMoveInput;
+    private Vector2 _syntheticLookInput;
+    private bool _syntheticSprint;
+    private StairTraversalAssistZone _stairAssistZone;
+    private float _nextStairAssistLookupTime;
+    private bool _inputCallbacksRegistered;
 
     public bool IsMovementLocked => _movementLocked;
     public Vector2 CurrentMoveInput => _currentMoveInput;
     public Vector3 CurrentMoveWorldDirection => _currentMoveWorldDirection;
+    public bool SyntheticInputActive => _syntheticInputActive;
+    public bool StepAssistEnabled => enableStepAssist;
 
     void Awake()
     {
-        _cc = GetComponent<CharacterController>();
-        _input = new InputSystem_Actions();
+        EnsureRuntimeReferences();
         NormalizeControllerScale();
         _targetHeight = standingHeight;
 
@@ -86,18 +94,51 @@ public class FirstPersonController : MonoBehaviour
 
     void OnEnable()
     {
-        _input.Enable();
-        // 점프 이벤트 구독
-        _input.Player.Jump.performed += OnJump;
-        // 크라우치 토글
-        _input.Player.Crouch.performed += OnCrouchToggle;
+        EnsureRuntimeReferences();
+        if (_input == null)
+        {
+            Debug.LogWarning("[FirstPersonController] Input actions unavailable on enable.");
+            return;
+        }
+
+        try
+        {
+            _input.Enable();
+            if (!_inputCallbacksRegistered)
+            {
+                // 점프 이벤트 구독
+                _input.Player.Jump.performed += OnJump;
+                // 크라우치 토글
+                _input.Player.Crouch.performed += OnCrouchToggle;
+                _inputCallbacksRegistered = true;
+            }
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[FirstPersonController] Failed to enable input actions: {ex.Message}");
+        }
     }
 
     void OnDisable()
     {
-        _input.Player.Jump.performed -= OnJump;
-        _input.Player.Crouch.performed -= OnCrouchToggle;
-        _input.Disable();
+        if (_input == null)
+            return;
+
+        try
+        {
+            if (_inputCallbacksRegistered)
+            {
+                _input.Player.Jump.performed -= OnJump;
+                _input.Player.Crouch.performed -= OnCrouchToggle;
+                _inputCallbacksRegistered = false;
+            }
+
+            _input.Disable();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[FirstPersonController] Failed to disable input actions cleanly: {ex.Message}");
+        }
     }
 
     void Start()
@@ -108,6 +149,7 @@ public class FirstPersonController : MonoBehaviour
 
     void Update()
     {
+        if (_cc == null || !_cc.enabled) return;
         if (_movementLocked) return;
         if (GameManager.Instance != null &&
             (GameManager.Instance.CurrentState == GameManager.GameState.GameOver ||
@@ -118,6 +160,8 @@ public class FirstPersonController : MonoBehaviour
         HandleLook();
         HandleMove();
         HandleGravity();
+        if (enableStepAssist && _currentMoveInput.sqrMagnitude > 0.01f && TryStairTraversalAssist())
+            _velocity.y = Mathf.Max(_velocity.y, -0.5f);
         HandleCrouchTransition();
         HandleHeadBob();
     }
@@ -135,7 +179,7 @@ public class FirstPersonController : MonoBehaviour
 
     private void HandleLook()
     {
-        Vector2 look = _input.Player.Look.ReadValue<Vector2>();
+        Vector2 look = _syntheticInputActive ? _syntheticLookInput : _input.Player.Look.ReadValue<Vector2>();
         float mouseX = look.x * mouseSensitivity;
         float mouseY = look.y * mouseSensitivity;
 
@@ -152,15 +196,19 @@ public class FirstPersonController : MonoBehaviour
 
     private void HandleMove()
     {
-        Vector2 move = Vector2.ClampMagnitude(_input.Player.Move.ReadValue<Vector2>(), 1f);
+        Vector2 rawMove = _syntheticInputActive ? _syntheticMoveInput : _input.Player.Move.ReadValue<Vector2>();
+        Vector2 move = Vector2.ClampMagnitude(rawMove, 1f);
         _currentMoveInput = move;
-        bool sprinting = _input.Player.Sprint.IsPressed() && !_isCrouching;
+        bool sprinting = (_syntheticInputActive ? _syntheticSprint : _input.Player.Sprint.IsPressed()) && !_isCrouching;
 
         float speed = _isCrouching ? crouchSpeed : (sprinting ? sprintSpeed : walkSpeed);
         Vector3 dir = transform.right * move.x + transform.forward * move.y;
         if (dir.sqrMagnitude > 1f)
             dir.Normalize();
         _currentMoveWorldDirection = dir.sqrMagnitude > 0.0001f ? dir.normalized : Vector3.zero;
+
+        if (enableStepAssist && move.sqrMagnitude > 0.01f && TryStairTraversalAssist())
+            _velocity.y = Mathf.Max(_velocity.y, -0.5f);
 
         Vector3 targetVelocity = dir * speed;
         float moveRate = move.sqrMagnitude > 0.01f ? acceleration : deceleration;
@@ -182,6 +230,9 @@ public class FirstPersonController : MonoBehaviour
             if (!stepped && enableDoorwayShoulderAssist)
                 TryDoorwayShoulderAssist(horizontalMove);
         }
+
+        if (enableStepAssist && move.sqrMagnitude > 0.01f && TryStairTraversalAssist())
+            _velocity.y = Mathf.Max(_velocity.y, -0.5f);
 
         // 이동 중 머리 보빙 타이머
         if (_horizontalVelocity.sqrMagnitude > 0.05f && _isGrounded)
@@ -231,6 +282,26 @@ public class FirstPersonController : MonoBehaviour
 
         if (TryShoulderMove(side, moveDir, forward)) return;
         TryShoulderMove(-side, moveDir, forward);
+    }
+
+    private bool TryStairTraversalAssist()
+    {
+        if (_cc == null || !_cc.enabled)
+            return false;
+
+        if (_currentMoveWorldDirection.sqrMagnitude < 0.0001f)
+            return false;
+
+        if (_stairAssistZone == null && Time.time >= _nextStairAssistLookupTime)
+        {
+            _nextStairAssistLookupTime = Time.time + 0.5f;
+            _stairAssistZone = FindFirstObjectByType<StairTraversalAssistZone>();
+        }
+
+        if (_stairAssistZone != null)
+            return _stairAssistZone.TryAssist(_cc, _currentMoveWorldDirection, Time.deltaTime);
+
+        return false;
     }
 
     private bool TryShoulderMove(Vector3 side, Vector3 forwardDir, float forwardDistance)
@@ -332,8 +403,65 @@ public class FirstPersonController : MonoBehaviour
         }
     }
 
+    public void BeginSyntheticInput()
+    {
+        _syntheticInputActive = true;
+        _syntheticMoveInput = Vector2.zero;
+        _syntheticLookInput = Vector2.zero;
+        _syntheticSprint = false;
+        _horizontalVelocity = Vector3.zero;
+    }
+
+    public void SetSyntheticInput(Vector2 moveInput, Vector2 lookInput, bool sprint)
+    {
+        _syntheticInputActive = true;
+        _syntheticMoveInput = Vector2.ClampMagnitude(moveInput, 1f);
+        _syntheticLookInput = lookInput;
+        _syntheticSprint = sprint;
+    }
+
+    public void EndSyntheticInput()
+    {
+        _syntheticInputActive = false;
+        _syntheticMoveInput = Vector2.zero;
+        _syntheticLookInput = Vector2.zero;
+        _syntheticSprint = false;
+        _currentMoveInput = Vector2.zero;
+        _currentMoveWorldDirection = Vector3.zero;
+        _horizontalVelocity = Vector3.zero;
+    }
+
+    public void ConfigureForExperimentDefaults()
+    {
+        walkSpeed = 2.9f;
+        sprintSpeed = 4.5f;
+        crouchSpeed = 1.35f;
+        acceleration = 16f;
+        deceleration = 22f;
+        gravity = -16f;
+        standingHeight = 1.55f;
+        crouchHeight = 0.9f;
+        controllerRadius = 0.22f;
+        cameraStandingHeight = 1.32f;
+        enableDoorwayShoulderAssist = true;
+        shoulderAssistDistance = 0.1f;
+        shoulderAssistForwardNudge = 0.12f;
+        enableStepAssist = true;
+        assistedStepHeight = 0.45f;
+        stepProbeDistance = 0.55f;
+        stepForwardNudge = 0.2f;
+        bobAmplitude = 0.025f;
+        NormalizeControllerScale();
+    }
+
     private void NormalizeControllerScale()
     {
+        if (_cc == null)
+            _cc = GetComponent<CharacterController>();
+
+        if (_cc == null)
+            return;
+
         if (transform.localScale != Vector3.one)
         {
             transform.localScale = Vector3.one;
@@ -355,6 +483,24 @@ public class FirstPersonController : MonoBehaviour
             Vector3 cameraPosition = cameraHolder.localPosition;
             cameraPosition.y = Mathf.Min(cameraPosition.y, cameraStandingHeight);
             cameraHolder.localPosition = cameraPosition;
+        }
+    }
+
+    private void EnsureRuntimeReferences()
+    {
+        if (_cc == null)
+            _cc = GetComponent<CharacterController>();
+        if (_input != null)
+            return;
+
+        try
+        {
+            _input = new InputSystem_Actions();
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"[FirstPersonController] Failed to create input actions: {ex.Message}");
+            _input = null;
         }
     }
 }

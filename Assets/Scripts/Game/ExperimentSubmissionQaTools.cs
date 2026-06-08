@@ -263,11 +263,16 @@ public static class ExperimentSubmissionQaTools
         RequireNamedObject(report, "StairHouseCollisionGate_Auto", warningOnly: false);
         RequireNamedObject(report, "StairTraversalAssistZone_Auto", warningOnly: false);
         RequireNamedObject(report, "SecondFloorWalkableFloor_Auto", warningOnly: false);
+        RequireNamedObject(report, "SecondFloorStairBridge_Auto", warningOnly: false);
         RequireNamedObject(report, "SecondFloorStairLanding_Auto", warningOnly: false);
         RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_North", warningOnly: false);
         RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_South", warningOnly: false);
         RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_East", warningOnly: false);
         RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_West", warningOnly: false);
+        RequireNamedObject(report, "OldHouseInteriorFirstFloor_Auto", warningOnly: false);
+        RequireNamedObject(report, "OldHouseInteriorNorthWall_Auto", warningOnly: false);
+        RequireNamedObject(report, "OldHouseInteriorSouthWall_Left_Auto", warningOnly: false);
+        RequireNamedObject(report, "OldHouseInteriorSouthWall_Right_Auto", warningOnly: false);
         RequireNamedObject(report, "ExperimentMarker_StairsReached_Auto", warningOnly: false);
         RequireNamedObject(report, "ExperimentMarker_SecondFloorCue_Auto", warningOnly: false);
         RequireNamedObject(report, "ExperimentMarker_ObjectiveArea_Auto", warningOnly: false);
@@ -276,6 +281,7 @@ public static class ExperimentSubmissionQaTools
         CheckStairHouseCollisionGate(report);
         CheckPrimaryHouseCollider(report);
         CheckStairTransitionColliders(report);
+        CheckNoLegacyStairBlockers(report);
         CheckSecondFloorSupport(report);
     }
 
@@ -360,6 +366,7 @@ public static class ExperimentSubmissionQaTools
             new Vector3(-24.6f, 4.4f, -15.5f),
             new Vector3(-23.9f, 4.6f, -15.2f),
             new Vector3(-24.55f, 4.4f, -15.35f),
+            new Vector3(-26.55f, 4.4f, -16.65f),
         };
 
         for (int i = 0; i < probePositions.Length; i++)
@@ -383,10 +390,45 @@ public static class ExperimentSubmissionQaTools
         report.info.Add("Second floor support raycasts found solid walkable colliders.");
     }
 
+    private static void CheckNoLegacyStairBlockers(QaReport report)
+    {
+        Collider[] colliders = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider collider = colliders[i];
+            if (!IsLegacyStairBlocker(collider))
+                continue;
+
+            report.errors.Add($"Legacy stair blocker remains solid: {DescribeCollider(collider)}.");
+            return;
+        }
+
+        report.info.Add("Legacy generic Cube stair blockers are disabled or converted to triggers.");
+    }
+
+    private static bool IsLegacyStairBlocker(Collider collider)
+    {
+        if (collider == null || collider.isTrigger)
+            return false;
+        if (!collider.gameObject.name.StartsWith("Cube", StringComparison.Ordinal))
+            return false;
+
+        Bounds bounds = collider.bounds;
+        Vector2 center2 = new Vector2(bounds.center.x, bounds.center.z);
+        Vector2 stair2 = new Vector2(-27.6f, -16.0f);
+        return Vector2.Distance(center2, stair2) <= 2.25f &&
+               bounds.center.y >= 0.35f &&
+               bounds.center.y <= 3.0f &&
+               bounds.size.y >= 1.0f &&
+               bounds.size.x >= 1.5f &&
+               bounds.size.z >= 1.5f;
+    }
+
     private static void CheckStairTransitionColliders(QaReport report)
     {
         RequireTriggerCollider(report, "SecondFloorAccessRamp_Auto");
         RequireTriggerCollider(report, "SecondFloorAccessRamp_Landing_Auto");
+        RequireTriggerCollider(report, "SecondFloorStairBridge_Auto");
         RequireTriggerCollider(report, "SecondFloorStairLanding_Auto");
     }
 
@@ -458,6 +500,7 @@ public static class ExperimentSubmissionQaTools
         return objectName.StartsWith("SecondFloorAccessRamp") ||
                objectName.StartsWith("SecondFloorAccessStep") ||
                objectName.StartsWith("SecondFloorWalkableFloor") ||
+               objectName.StartsWith("SecondFloorStairBridge") ||
                objectName.StartsWith("SecondFloorStairLanding") ||
                objectName.StartsWith("ExperimentMarker") ||
                objectName.StartsWith("SecondFloorObjective");
@@ -514,11 +557,29 @@ public static class ExperimentSubmissionQaTools
         RequireComponent<KillerPlayerCollisionBypass>(report, killer.gameObject, "KillerPlayerCollisionBypass");
         if (!killer.AvoidsStairRouteDuringChase)
             report.errors.Add("Killer stair/2F safety hold is disabled.");
+        if (!HasVisibleRenderer(killer))
+            report.errors.Add("KillerAI has no active enabled Renderer; KILLER will be invisible in Play Mode.");
         if (killer.GetComponentInChildren<Animator>(true) == null)
             report.warnings.Add("KillerAI has no Animator in children.");
 
         if (UnityEngine.Object.FindFirstObjectByType<Unity.AI.Navigation.NavMeshSurface>() == null)
             report.warnings.Add("No NavMeshSurface found; killer route must be verified manually.");
+    }
+
+    private static bool HasVisibleRenderer(KillerAI killer)
+    {
+        if (killer == null || !killer.gameObject.activeInHierarchy)
+            return false;
+
+        Renderer[] renderers = killer.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy)
+                return true;
+        }
+
+        return false;
     }
 
     private static void CheckRouteFeasibility(QaReport report)
@@ -748,6 +809,7 @@ public static class ExperimentSubmissionQaAutoRun
     private const string QaFlagPath = "Temp/run_experiment_submission_qa.flag";
     private const string SmokeFlagPath = "Temp/run_experiment_playmode_smoke.flag";
     private const string IotSmokeFlagPath = "Temp/run_experiment_iot_smoke.flag";
+    private const string StopPlayModeFlagPath = "Temp/stop_experiment_playmode.flag";
     private const string MainScenePath = "Assets/Scenes/MainScene.unity";
     private const string ConditionPrefsKey = "ExperimentCondition";
     private const string PreviousConditionHadKey = "ExperimentSmokePreviousConditionHadValue";
@@ -784,8 +846,24 @@ public static class ExperimentSubmissionQaAutoRun
     {
         if (EditorApplication.isCompiling || EditorApplication.isUpdating) return;
 
+        StopPlayModeIfRequested();
         RunSubmissionQaIfRequested();
         RunPlayModeSmokeIfRequested();
+    }
+
+    private static void StopPlayModeIfRequested()
+    {
+        if (!File.Exists(StopPlayModeFlagPath)) return;
+
+        TryDeleteFlag(StopPlayModeFlagPath, "ExperimentStopPlayMode");
+        if (!EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            Debug.Log("[ExperimentSmoke] Stop PlayMode flag consumed while Editor was already in Edit Mode.");
+            return;
+        }
+
+        Debug.Log("[ExperimentSmoke] Stop PlayMode flag consumed; exiting Play Mode.");
+        EditorApplication.ExitPlaymode();
     }
 
     private static void RunSubmissionQaIfRequested()

@@ -11,7 +11,7 @@ Unity 기반 2분 공포 체험과 SmartThings 전등/콘센트 반응을 연결
 - Play length: 120 seconds
 - Objective: recover the 2F device part
 - Conditions: `GameOnly`, `GameWithIoT`
-- Current local status: automated Unity smokes pass in both conditions; real SmartThings evidence still requires `.env` credentials and a physical-device smoke run.
+- Current local status: automated Unity QA and PlayMode smokes pass in both conditions. The reports verify synthetic WASD traversal from the lower stair route to 2F, visible `KILLER` placement, lantern visibility, horror ambience/BGM, and timed scenario events. Real SmartThings evidence still requires `.env` credentials and a physical-device smoke run.
 
 ## Core Runtime Flow
 
@@ -53,8 +53,8 @@ Tools > Experiment > Run Play Mode Smoke Test (GameWithIoT Simulation)
 Expected Unity reports:
 
 - `Temp/experiment_submission_qa.json`: `errorCount = 0`
-- `Temp/experiment_playmode_smoke.json`: `success = true`
-- `Temp/experiment_playmode_iot_smoke.json`: `success = true`
+- `Temp/experiment_playmode_smoke.json`: `success = true`, including `Synthetic WASD player route reached 2F using FirstPersonController`
+- `Temp/experiment_playmode_iot_smoke.json`: `success = true`, including accepted Unity-to-server timed scenario requests
 
 The submission QA may warn that SmartThings is in simulation mode until real device credentials are configured.
 
@@ -131,6 +131,15 @@ The killer is tuned for readable IoT feedback instead of constant punishment:
 - Hits are nonlethal during the experiment and are logged as `player_hit`.
 
 This gives the player enough time to feel Smart LED/fan responses before the next attack can occur.
+
+## Collision And 2F Route
+
+The old-house mesh collider is kept enabled for walls/floors, but the doorway and stair route use narrow runtime gates so the player does not need to jump or rub against invisible geometry. `Prepare Active Scene` and `ExperimentBootstrapper` both create/maintain:
+
+- `OldHouseInterior*_Auto` shell colliders for the visible house interior.
+- `SecondFloorWalkableFloor_Auto` and `SecondFloorStairBridge_Auto` for the 2F route.
+- `StairTraversalAssistZone_Auto` for smooth first-person stair traversal.
+- `KILLER` placement near the house with visible renderers and player collision bypass.
 
 ## Current Known Warnings
 

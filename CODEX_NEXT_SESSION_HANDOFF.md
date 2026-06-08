@@ -273,3 +273,12 @@ Tools > Experiment > Run Play Mode Smoke Test (GameWithIoT Simulation)
 - If the deleted plaintext token in the old root `CLAUDE.md` was real, revoke it.
 - The experiment device scope is smart light plus smart plug fan only.
 - Final completion requires real physical IoT evidence, not just simulation.
+# Latest Verification - 2026-06-08
+
+- Unity Submission QA: `Temp/experiment_submission_qa.json` passed with `errorCount: 0`. The only warning is SmartThings simulation mode until real credentials are configured.
+- GameOnly PlayMode smoke: `Temp/experiment_playmode_smoke.json` passed with `success: true`, `errorCount: 0`, `warningCount: 0`.
+- GameWithIoT simulation smoke: `Temp/experiment_playmode_iot_smoke.json` passed with `success: true`, `errorCount: 0`, `warningCount: 0`.
+- Both PlayMode reports confirm `Synthetic WASD player route reached 2F using FirstPersonController`.
+- Both PlayMode reports confirm visible `KILLER` placement at the experiment route with active renderers and a player collision bypass.
+- The stair/2F route now uses `OldHouseInterior*_Auto`, `SecondFloorWalkableFloor_Auto`, trigger transition helpers, and `StairTraversalAssistZone_Auto` instead of relying on the malformed generic `Cube` blocker or the broad old-house mesh collider alone.
+- MCP transport can still time out around PlayMode. The reliable fallback is to create `Temp/run_experiment_submission_qa.flag`, `Temp/run_experiment_playmode_smoke.flag`, or `Temp/run_experiment_iot_smoke.flag`; the Unity editor auto-run hook consumes the flag and writes the corresponding report.

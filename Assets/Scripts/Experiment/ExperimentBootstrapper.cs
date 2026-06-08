@@ -1,6 +1,11 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+#if UNITY_EDITOR
+using System.IO;
+using UnityEditor;
+#endif
+
 /// <summary>
 /// 실험 필수 싱글턴이 씬에 없을 때 런타임에 자동 생성한다.
 /// 최종 씬에는 명시적으로 배치해도 되며, 이 스크립트는 누락 방지용이다.
@@ -8,14 +13,39 @@ using UnityEngine.SceneManagement;
 public static class ExperimentBootstrapper
 {
     private const string PrimaryHouseColliderName = "Old_House_windows_separated_Collider";
+    private const string KillerPrefabPath = "Assets/Prefabs/Killer.prefab";
+#if UNITY_EDITOR
+    private const string StopPlayModeFlagPath = "Temp/stop_experiment_playmode.flag";
+#endif
     private static readonly Vector3 StairAssistBaseTop = new Vector3(-29.15f, 0.22f, -18.75f);
     private static readonly Vector3 StairAssistLandingTop = new Vector3(-27.35f, 2.94f, -17.25f);
     private static readonly Vector3 StairAssistExitTop = new Vector3(-24.55f, 2.94f, -15.35f);
+    private static readonly Vector3 KillerSpawnPosition = new Vector3(-31.2f, 0.15f, -21.2f);
+    private static readonly Vector3 KillerLookTarget = new Vector3(-24.6f, 0.15f, -17.2f);
     private const int StairAssistStepCount = 8;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureExperimentRuntime()
     {
+#if UNITY_EDITOR
+        if (File.Exists(StopPlayModeFlagPath))
+        {
+            File.Delete(StopPlayModeFlagPath);
+            Debug.Log("[ExperimentBootstrapper] Stop PlayMode flag consumed; exiting Play Mode.");
+            EditorApplication.ExitPlaymode();
+            return;
+        }
+
+        string absoluteStopFlagPath = Path.Combine(Directory.GetParent(Application.dataPath).FullName, StopPlayModeFlagPath);
+        if (File.Exists(absoluteStopFlagPath))
+        {
+            File.Delete(absoluteStopFlagPath);
+            Debug.Log("[ExperimentBootstrapper] Stop PlayMode flag consumed from project Temp; exiting Play Mode.");
+            EditorApplication.ExitPlaymode();
+            return;
+        }
+#endif
+
         EnsureComponent<GameManager>("GameManager");
         EnsureComponent<SmartThingsEventSender>("SmartThingsEventSender");
 
@@ -31,6 +61,7 @@ public static class ExperimentBootstrapper
         EnsureSecondFloorAccessRamp();
         EnsureSecondFloorWalkableColliders();
         EnsureSecondFloorBoundaryColliders();
+        EnsureOldHouseInteriorCollisionShell();
         EnsureDoorwayAccessAssist();
         EnsureDoorwayHouseCollisionGate();
         EnsureStairHouseCollisionGate();
@@ -87,9 +118,16 @@ public static class ExperimentBootstrapper
 
         CreateOrTuneInvisibleBox(
             "SecondFloorWalkableFloor_Auto",
-            new Vector3(-23.75f, 2.94f, -14.85f),
+            new Vector3(-23.95f, 2.94f, -14.95f),
             Quaternion.identity,
-            new Vector3(4.9f, 0.18f, 4.9f));
+            new Vector3(5.65f, 0.18f, 5.1f));
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorStairBridge_Auto",
+            new Vector3(-26.55f, 2.94f, -16.65f),
+            Quaternion.identity,
+            new Vector3(1.95f, 0.18f, 1.95f));
+        SetColliderTrigger("SecondFloorStairBridge_Auto", true);
 
         CreateOrTuneInvisibleBox(
             "SecondFloorStairLanding_Auto",
@@ -126,6 +164,47 @@ public static class ExperimentBootstrapper
             new Vector3(-26.35f, 3.95f, -12.85f),
             Quaternion.identity,
             new Vector3(0.22f, 2.0f, 1.0f));
+    }
+
+    private static void EnsureOldHouseInteriorCollisionShell()
+    {
+        if (SceneManager.GetActiveScene().name != "MainScene") return;
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorFirstFloor_Auto",
+            new Vector3(-25.2f, 0.05f, -17.15f),
+            Quaternion.identity,
+            new Vector3(9.4f, 0.1f, 8.9f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorNorthWall_Auto",
+            new Vector3(-25.2f, 1.45f, -12.55f),
+            Quaternion.identity,
+            new Vector3(9.4f, 2.8f, 0.22f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorWestWall_Auto",
+            new Vector3(-30.0f, 1.45f, -16.85f),
+            Quaternion.identity,
+            new Vector3(0.22f, 2.8f, 8.15f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorEastWall_Auto",
+            new Vector3(-20.45f, 1.45f, -16.85f),
+            Quaternion.identity,
+            new Vector3(0.22f, 2.8f, 8.15f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorSouthWall_Left_Auto",
+            new Vector3(-28.45f, 1.45f, -21.55f),
+            Quaternion.identity,
+            new Vector3(3.0f, 2.8f, 0.22f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorSouthWall_Right_Auto",
+            new Vector3(-21.9f, 1.45f, -21.55f),
+            Quaternion.identity,
+            new Vector3(2.8f, 2.8f, 0.22f));
     }
 
     private static void EnsureDoorwayAccessAssist()
@@ -382,8 +461,8 @@ public static class ExperimentBootstrapper
         Bounds bounds = collider.bounds;
         Vector2 center2 = new Vector2(bounds.center.x, bounds.center.z);
         Vector2 stair2 = new Vector2(-27.6f, -16.0f);
-        return Vector2.Distance(center2, stair2) <= 1.35f &&
-               bounds.center.y >= 1.0f &&
+        return Vector2.Distance(center2, stair2) <= 2.25f &&
+               bounds.center.y >= 0.35f &&
                bounds.center.y <= 3.0f &&
                bounds.size.y >= 1.0f &&
                bounds.size.x >= 1.5f &&
@@ -484,6 +563,10 @@ public static class ExperimentBootstrapper
         if (player.GetComponent<NonLethalHitFeedback>() == null)
             player.AddComponent<NonLethalHitFeedback>();
 
+        FirstPersonController firstPerson = player.GetComponent<FirstPersonController>();
+        if (firstPerson != null)
+            firstPerson.ConfigureForExperimentDefaults();
+
         if (player.GetComponent<AudioSource>() == null)
             player.AddComponent<AudioSource>();
 
@@ -497,7 +580,7 @@ public static class ExperimentBootstrapper
 
     private static void EnsureKillerExperimentSetup()
     {
-        KillerAI killer = Object.FindFirstObjectByType<KillerAI>();
+        KillerAI killer = EnsureKillerRuntimeInstance();
         if (killer == null) return;
 
         UnityEngine.AI.NavMeshAgent agent = killer.GetComponent<UnityEngine.AI.NavMeshAgent>();
@@ -524,6 +607,111 @@ public static class ExperimentBootstrapper
         Animator animator = killer.GetComponentInChildren<Animator>(true);
         if (animator != null && animator.GetComponent<FootstepAnimationEventReceiver>() == null)
             animator.gameObject.AddComponent<FootstepAnimationEventReceiver>();
+    }
+
+    private static KillerAI EnsureKillerRuntimeInstance()
+    {
+        KillerAI killer = null;
+        KillerAI[] killers = Object.FindObjectsByType<KillerAI>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < killers.Length; i++)
+        {
+            if (killers[i] != null)
+            {
+                killer = killers[i];
+                break;
+            }
+        }
+
+        if (killer == null)
+        {
+            GameObject killerObject = null;
+#if UNITY_EDITOR
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(KillerPrefabPath);
+            if (prefab != null)
+                killerObject = Object.Instantiate(prefab);
+#endif
+            if (killerObject == null)
+            {
+                killerObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                killerObject.transform.localScale = new Vector3(0.9f, 1.15f, 0.9f);
+            }
+
+            killerObject.name = "KILLER";
+            if (killerObject.GetComponent<UnityEngine.AI.NavMeshAgent>() == null)
+                killerObject.AddComponent<UnityEngine.AI.NavMeshAgent>();
+            killer = killerObject.GetComponent<KillerAI>();
+            if (killer == null)
+                killer = killerObject.AddComponent<KillerAI>();
+        }
+
+        ActivateTransformChain(killer.transform);
+        PlaceKillerAtExperimentSpawn(killer, !IsKillerInExperimentArea(killer.transform.position));
+        EnsureKillerHasVisibleRenderer(killer);
+        killer.gameObject.name = "KILLER";
+        return killer;
+    }
+
+    private static void ActivateTransformChain(Transform transform)
+    {
+        for (Transform current = transform; current != null; current = current.parent)
+        {
+            if (!current.gameObject.activeSelf)
+                current.gameObject.SetActive(true);
+        }
+    }
+
+    private static bool IsKillerInExperimentArea(Vector3 position)
+    {
+        return position.x >= -36f &&
+               position.x <= -18f &&
+               position.y >= -0.5f &&
+               position.y <= 4.5f &&
+               position.z >= -27f &&
+               position.z <= -8f;
+    }
+
+    private static void PlaceKillerAtExperimentSpawn(KillerAI killer, bool force)
+    {
+        if (killer == null)
+            return;
+
+        Vector3 target = KillerSpawnPosition;
+        if (UnityEngine.AI.NavMesh.SamplePosition(KillerSpawnPosition, out UnityEngine.AI.NavMeshHit hit, 6f, UnityEngine.AI.NavMesh.AllAreas))
+            target = hit.position;
+
+        if (!force && Vector3.Distance(killer.transform.position, target) <= 0.75f)
+            return;
+
+        Vector3 look = KillerLookTarget - target;
+        look.y = 0f;
+        Quaternion rotation = look.sqrMagnitude > 0.01f
+            ? Quaternion.LookRotation(look.normalized, Vector3.up)
+            : killer.transform.rotation;
+
+        killer.transform.SetPositionAndRotation(target, rotation);
+        killer.transform.localScale = Vector3.one;
+    }
+
+    private static void EnsureKillerHasVisibleRenderer(KillerAI killer)
+    {
+        Renderer[] renderers = killer.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy)
+                return;
+        }
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer == null)
+                continue;
+
+            ActivateTransformChain(renderer.transform);
+            renderer.enabled = true;
+            return;
+        }
     }
 
     private static void EnsureAudioListener(GameObject player)

@@ -38,6 +38,14 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         new Vector3(-27.35f, 2.94f, -17.25f),
         new Vector3(-24.55f, 2.94f, -15.35f),
     };
+    private static readonly Vector3[] SyntheticWasdStairRoute =
+    {
+        new Vector3(-29.15f, 0.22f, -18.75f),
+        new Vector3(-28.20f, 0.95f, -18.05f),
+        new Vector3(-26.60f, 2.94f, -16.65f),
+        new Vector3(-25.40f, 2.94f, -15.95f),
+        new Vector3(-24.55f, 2.94f, -15.35f),
+    };
 
     [SerializeField] private float initialDelaySec = 0.75f;
     [SerializeField] private float maxWaitForSessionSec = 5f;
@@ -108,6 +116,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
 
         CheckRuntimeObjects(report);
         CheckKillerRoute(report);
+        yield return DrivePlayerSyntheticWasdRoute(report);
 
         ExperimentLogger logger = FindFirstObjectByType<ExperimentLogger>();
         if (logger != null)
@@ -190,8 +199,11 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
                 CheckStairRouteCharacterControllerTraversal(report, player, controller);
             }
 
-            if (player.GetComponent<FirstPersonController>() == null)
+            FirstPersonController firstPerson = player.GetComponent<FirstPersonController>();
+            if (firstPerson == null)
                 report.errors.Add("Player has no FirstPersonController.");
+            else if (!firstPerson.StepAssistEnabled)
+                report.errors.Add("Player FirstPersonController step assist is disabled; stairs may not be traversable with WASD.");
             if (player.GetComponent<NonLethalHitFeedback>() == null)
                 report.errors.Add("Player has no NonLethalHitFeedback.");
 
@@ -259,11 +271,16 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         RequireNamedObject(report, "StairHouseCollisionGate_Auto", false);
         RequireNamedObject(report, "StairTraversalAssistZone_Auto", false);
         RequireNamedObject(report, "SecondFloorWalkableFloor_Auto", false);
+        RequireNamedObject(report, "SecondFloorStairBridge_Auto", false);
         RequireNamedObject(report, "SecondFloorStairLanding_Auto", false);
         RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_North", false);
         RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_South", false);
         RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_East", false);
         RequireNamedObject(report, "SecondFloorBoundaryWall_Auto_West", false);
+        RequireNamedObject(report, "OldHouseInteriorFirstFloor_Auto", false);
+        RequireNamedObject(report, "OldHouseInteriorNorthWall_Auto", false);
+        RequireNamedObject(report, "OldHouseInteriorSouthWall_Left_Auto", false);
+        RequireNamedObject(report, "OldHouseInteriorSouthWall_Right_Auto", false);
         RequireNamedObject(report, "ExperimentMarker_StairsReached_Auto", false);
         RequireNamedObject(report, "ExperimentMarker_SecondFloorCue_Auto", false);
         RequireNamedObject(report, "ExperimentMarker_ObjectiveArea_Auto", false);
@@ -273,6 +290,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         CheckStairHouseCollisionGate(report);
         CheckPrimaryHouseCollider(report);
         CheckStairTransitionColliders(report);
+        CheckNoLegacyStairBlockers(report);
         CheckSecondFloorSupport(report);
     }
 
@@ -357,6 +375,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
             new Vector3(-24.6f, 4.4f, -15.5f),
             new Vector3(-23.9f, 4.6f, -15.2f),
             new Vector3(-24.55f, 4.4f, -15.35f),
+            new Vector3(-26.55f, 4.4f, -16.65f),
         };
 
         for (int i = 0; i < probePositions.Length; i++)
@@ -380,10 +399,45 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         report.info.Add("Second floor support raycasts found solid walkable colliders.");
     }
 
+    private static void CheckNoLegacyStairBlockers(SmokeReport report)
+    {
+        Collider[] colliders = FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider collider = colliders[i];
+            if (!IsLegacyStairBlocker(collider))
+                continue;
+
+            report.errors.Add($"Legacy stair blocker remains solid: {DescribeCollider(collider)}.");
+            return;
+        }
+
+        report.info.Add("Legacy generic Cube stair blockers are disabled or converted to triggers.");
+    }
+
+    private static bool IsLegacyStairBlocker(Collider collider)
+    {
+        if (collider == null || collider.isTrigger)
+            return false;
+        if (!collider.gameObject.name.StartsWith("Cube", StringComparison.Ordinal))
+            return false;
+
+        Bounds bounds = collider.bounds;
+        Vector2 center2 = new Vector2(bounds.center.x, bounds.center.z);
+        Vector2 stair2 = new Vector2(-27.6f, -16.0f);
+        return Vector2.Distance(center2, stair2) <= 2.25f &&
+               bounds.center.y >= 0.35f &&
+               bounds.center.y <= 3.0f &&
+               bounds.size.y >= 1.0f &&
+               bounds.size.x >= 1.5f &&
+               bounds.size.z >= 1.5f;
+    }
+
     private static void CheckStairTransitionColliders(SmokeReport report)
     {
         RequireTriggerCollider(report, "SecondFloorAccessRamp_Auto");
         RequireTriggerCollider(report, "SecondFloorAccessRamp_Landing_Auto");
+        RequireTriggerCollider(report, "SecondFloorStairBridge_Auto");
         RequireTriggerCollider(report, "SecondFloorStairLanding_Auto");
     }
 
@@ -500,6 +554,23 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
             return;
         }
 
+        if (!killer.gameObject.activeInHierarchy)
+            report.errors.Add("KillerAI exists but its GameObject is inactive.");
+
+        Renderer[] renderers = killer.GetComponentsInChildren<Renderer>(true);
+        int visibleRenderers = 0;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy)
+                visibleRenderers++;
+        }
+
+        if (visibleRenderers == 0)
+            report.errors.Add("KillerAI has no active enabled Renderer, so the KILLER object will be invisible.");
+        else
+            report.info.Add($"KILLER visible in scene: name={killer.gameObject.name}, pos={killer.transform.position.x:0.0},{killer.transform.position.y:0.0},{killer.transform.position.z:0.0}, renderers={visibleRenderers}.");
+
         NavMeshAgent agent = killer.GetComponent<NavMeshAgent>();
         if (agent == null)
         {
@@ -593,6 +664,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
             return IsConfiguredHouseCollisionGate("StairHouseCollisionGate_Auto");
 
         if (objectName.StartsWith("SecondFloorWalkableFloor") ||
+            objectName.StartsWith("SecondFloorStairBridge") ||
             objectName.StartsWith("SecondFloorStairLanding"))
         {
             return hit.bounds.max.y < bottom.y - radius * 0.35f;
@@ -634,6 +706,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         {
             probe.transform.position = StairTraversalRoute[0];
             Physics.SyncTransforms();
+            SuppressPrimaryHouseColliderForTraversalProbe();
             IgnoreTraversalProbeNonRouteColliders(controller, player);
 
             StairTraversalAssistZone assistZone = FindFirstObjectByType<StairTraversalAssistZone>();
@@ -656,8 +729,158 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         }
         finally
         {
+            RestorePrimaryHouseColliderAfterTraversalProbe();
             UnityEngine.Object.Destroy(probe);
         }
+    }
+
+    private static Collider _suppressedProbeHouseCollider;
+    private static bool _suppressedProbeHouseColliderOriginalEnabled;
+
+    private static Collider SuppressPrimaryHouseColliderForTraversalProbe()
+    {
+        if (!IsConfiguredHouseCollisionGate("StairHouseCollisionGate_Auto"))
+            return null;
+
+        Collider[] colliders = FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider collider = colliders[i];
+            if (collider == null || collider.gameObject.name != PrimaryHouseColliderName)
+                continue;
+
+            _suppressedProbeHouseCollider = collider;
+            _suppressedProbeHouseColliderOriginalEnabled = collider.enabled;
+            collider.enabled = false;
+            Physics.SyncTransforms();
+            return collider;
+        }
+
+        return null;
+    }
+
+    private static void RestorePrimaryHouseColliderAfterTraversalProbe()
+    {
+        if (_suppressedProbeHouseCollider == null)
+            return;
+
+        _suppressedProbeHouseCollider.enabled = _suppressedProbeHouseColliderOriginalEnabled;
+        _suppressedProbeHouseCollider = null;
+        Physics.SyncTransforms();
+    }
+
+    private static IEnumerator DrivePlayerSyntheticWasdRoute(SmokeReport report)
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player == null)
+        {
+            report.errors.Add("Synthetic WASD route cannot run because Player is missing.");
+            yield break;
+        }
+
+        FirstPersonController firstPerson = player.GetComponent<FirstPersonController>();
+        CharacterController controller = player.GetComponent<CharacterController>();
+        if (firstPerson == null || controller == null)
+        {
+            report.errors.Add("Synthetic WASD route requires FirstPersonController and CharacterController on Player.");
+            yield break;
+        }
+
+        Vector3 originalPosition = player.transform.position;
+        Quaternion originalRotation = player.transform.rotation;
+        bool originalControllerEnabled = controller.enabled;
+        float originalTimeScale = Time.timeScale;
+
+        try
+        {
+            Time.timeScale = 1f;
+            controller.enabled = false;
+            player.transform.SetPositionAndRotation(SyntheticWasdStairRoute[0], Quaternion.identity);
+            controller.enabled = originalControllerEnabled;
+            Physics.SyncTransforms();
+
+            firstPerson.BeginSyntheticInput();
+            yield return null;
+
+            for (int i = 1; i < SyntheticWasdStairRoute.Length; i++)
+            {
+                yield return DriveSyntheticWasdSegment(report, player, firstPerson, SyntheticWasdStairRoute[i], i);
+                if (report.errors.Count > 0)
+                    yield break;
+            }
+
+            Vector3 finalPosition = player.transform.position;
+            if (finalPosition.y < 2.55f)
+            {
+                report.errors.Add($"Synthetic WASD player route ended too low: y={finalPosition.y:0.00}.");
+                yield break;
+            }
+
+            report.info.Add($"Synthetic WASD player route reached 2F using FirstPersonController. end={finalPosition.x:0.0},{finalPosition.y:0.0},{finalPosition.z:0.0}.");
+        }
+        finally
+        {
+            StairTraversalAssistZone assistZone = FindFirstObjectByType<StairTraversalAssistZone>();
+            if (assistZone != null)
+                assistZone.ReleaseHouseCollider();
+            firstPerson.EndSyntheticInput();
+            controller.enabled = false;
+            player.transform.SetPositionAndRotation(originalPosition, originalRotation);
+            controller.enabled = originalControllerEnabled;
+            Time.timeScale = originalTimeScale;
+            Physics.SyncTransforms();
+        }
+    }
+
+    private static IEnumerator DriveSyntheticWasdSegment(
+        SmokeReport report,
+        GameObject player,
+        FirstPersonController firstPerson,
+        Vector3 target,
+        int waypointIndex)
+    {
+        const float maxSegmentSeconds = 5.0f;
+        const float closeEnough = 0.6f;
+        float deadline = Time.realtimeSinceStartup + maxSegmentSeconds;
+        float bestFlatDistance = float.MaxValue;
+        int stalledFrames = 0;
+
+        while (Time.realtimeSinceStartup < deadline)
+        {
+            Vector3 position = player.transform.position;
+            Vector3 flatDelta = new Vector3(target.x - position.x, 0f, target.z - position.z);
+            float flatDistance = flatDelta.magnitude;
+            if (flatDistance <= closeEnough && player.transform.position.y >= target.y - 0.25f)
+                yield break;
+
+            Vector3 direction = flatDelta.sqrMagnitude > 0.0001f ? flatDelta.normalized : player.transform.forward;
+            player.transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+            firstPerson.SetSyntheticInput(new Vector2(0f, 1f), Vector2.zero, sprint: false);
+
+            yield return null;
+
+            Vector3 after = player.transform.position;
+            float afterDistance = Vector2.Distance(new Vector2(after.x, after.z), new Vector2(target.x, target.z));
+            if (afterDistance < bestFlatDistance - 0.01f || after.y > position.y + 0.02f)
+            {
+                bestFlatDistance = Mathf.Min(bestFlatDistance, afterDistance);
+                stalledFrames = 0;
+            }
+            else
+            {
+                stalledFrames++;
+            }
+
+            if (stalledFrames > 90)
+            {
+                report.errors.Add($"Synthetic WASD player route stalled at waypoint {waypointIndex}: pos={after.x:0.0},{after.y:0.0},{after.z:0.0}, target={target.x:0.0},{target.y:0.0},{target.z:0.0}, remaining={afterDistance:0.00}m. {DescribeProbeContacts(player.GetComponent<CharacterController>())}");
+                yield break;
+            }
+        }
+
+        Vector3 finalPosition = player.transform.position;
+        float remaining = Vector2.Distance(new Vector2(finalPosition.x, finalPosition.z), new Vector2(target.x, target.z));
+        report.errors.Add($"Synthetic WASD player route timed out at waypoint {waypointIndex}: pos={finalPosition.x:0.0},{finalPosition.y:0.0},{finalPosition.z:0.0}, remaining={remaining:0.00}m. {DescribeProbeContacts(player.GetComponent<CharacterController>())}");
     }
 
     private static bool MoveProbeToward(CharacterController controller, Vector3 target, StairTraversalAssistZone assistZone, out string failure)

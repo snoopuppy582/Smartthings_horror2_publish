@@ -33,6 +33,8 @@ public static class ExperimentSceneTools
     private static readonly Vector3 StairAssistBaseTop = new Vector3(-29.15f, 0.22f, -18.75f);
     private static readonly Vector3 StairAssistLandingTop = new Vector3(-27.35f, 2.94f, -17.25f);
     private static readonly Vector3 StairAssistExitTop = new Vector3(-24.55f, 2.94f, -15.35f);
+    private static readonly Vector3 KillerSpawnPosition = new Vector3(-31.2f, 0.15f, -21.2f);
+    private static readonly Vector3 KillerLookTarget = new Vector3(-24.6f, 0.15f, -17.2f);
     private const int StairAssistStepCount = 8;
 
     [MenuItem("Tools/Experiment/Prepare Active Scene")]
@@ -51,6 +53,7 @@ public static class ExperimentSceneTools
         EnsureSecondFloorAccessRamp();
         EnsureSecondFloorWalkableColliders();
         EnsureSecondFloorBoundaryColliders();
+        EnsureOldHouseInteriorCollisionShell();
         EnsureDoorwayAccessAssist();
         EnsureDoorwayHouseCollisionGate();
         EnsureStairHouseCollisionGate();
@@ -260,6 +263,8 @@ public static class ExperimentSceneTools
             SetSerializedFloat(firstPerson, "crouchHeight", 0.9f);
             SetSerializedFloat(firstPerson, "controllerRadius", 0.22f);
             SetSerializedFloat(firstPerson, "cameraStandingHeight", 1.32f);
+            SetSerializedBool(firstPerson, "enableDoorwayShoulderAssist", true);
+            SetSerializedBool(firstPerson, "enableStepAssist", true);
             SetSerializedFloat(firstPerson, "assistedStepHeight", 0.45f);
             SetSerializedFloat(firstPerson, "stepProbeDistance", 0.55f);
             SetSerializedFloat(firstPerson, "stepForwardNudge", 0.2f);
@@ -305,10 +310,10 @@ public static class ExperimentSceneTools
 
     private static void EnsureKillerExperimentSetup()
     {
-        KillerAI killer = UnityEngine.Object.FindFirstObjectByType<KillerAI>();
+        KillerAI killer = EnsureKillerSceneInstance();
         if (killer == null)
         {
-            Debug.LogWarning("[ExperimentTools] KillerAI not found; skipped killer tuning.");
+            Debug.LogWarning("[ExperimentTools] KillerAI not found and could not be created; skipped killer tuning.");
             return;
         }
 
@@ -376,6 +381,109 @@ public static class ExperimentSceneTools
         }
     }
 
+    private static KillerAI EnsureKillerSceneInstance()
+    {
+        KillerAI killer = UnityEngine.Object
+            .FindObjectsByType<KillerAI>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+            .FirstOrDefault();
+
+        bool created = false;
+        if (killer == null)
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(KillerPrefabPath);
+            GameObject killerObject = prefab != null
+                ? PrefabUtility.InstantiatePrefab(prefab) as GameObject
+                : new GameObject("KILLER");
+
+            if (killerObject == null)
+                return null;
+
+            Undo.RegisterCreatedObjectUndo(killerObject, "Create experiment KILLER");
+            killerObject.name = "KILLER";
+            if (killerObject.GetComponent<UnityEngine.AI.NavMeshAgent>() == null)
+                Undo.AddComponent<UnityEngine.AI.NavMeshAgent>(killerObject);
+
+            killer = killerObject.GetComponent<KillerAI>();
+            if (killer == null)
+                killer = Undo.AddComponent<KillerAI>(killerObject);
+
+            created = true;
+        }
+
+        ActivateTransformChain(killer.transform);
+        PlaceKillerAtExperimentSpawn(killer, created || !IsKillerInExperimentArea(killer.transform.position));
+        EnsureKillerHasVisibleRenderer(killer);
+        killer.gameObject.name = "KILLER";
+        EditorUtility.SetDirty(killer.gameObject);
+        return killer;
+    }
+
+    private static void ActivateTransformChain(Transform transform)
+    {
+        for (Transform current = transform; current != null; current = current.parent)
+        {
+            if (current.gameObject.activeSelf)
+                continue;
+
+            Undo.RecordObject(current.gameObject, "Activate experiment object");
+            current.gameObject.SetActive(true);
+            EditorUtility.SetDirty(current.gameObject);
+        }
+    }
+
+    private static bool IsKillerInExperimentArea(Vector3 position)
+    {
+        return position.x >= -36f &&
+               position.x <= -18f &&
+               position.y >= -0.5f &&
+               position.y <= 4.5f &&
+               position.z >= -27f &&
+               position.z <= -8f;
+    }
+
+    private static void PlaceKillerAtExperimentSpawn(KillerAI killer, bool force)
+    {
+        if (killer == null)
+            return;
+
+        Vector3 target = KillerSpawnPosition;
+        if (UnityEngine.AI.NavMesh.SamplePosition(KillerSpawnPosition, out UnityEngine.AI.NavMeshHit hit, 6f, UnityEngine.AI.NavMesh.AllAreas))
+            target = hit.position;
+
+        if (!force && Vector3.Distance(killer.transform.position, target) <= 0.75f)
+            return;
+
+        Vector3 look = KillerLookTarget - target;
+        look.y = 0f;
+        Quaternion rotation = look.sqrMagnitude > 0.01f
+            ? Quaternion.LookRotation(look.normalized, Vector3.up)
+            : killer.transform.rotation;
+
+        Undo.RecordObject(killer.transform, "Place experiment KILLER");
+        killer.transform.SetPositionAndRotation(target, rotation);
+        killer.transform.localScale = Vector3.one;
+        EditorUtility.SetDirty(killer.transform);
+    }
+
+    private static void EnsureKillerHasVisibleRenderer(KillerAI killer)
+    {
+        Renderer[] renderers = killer.GetComponentsInChildren<Renderer>(true);
+        if (renderers.Any(renderer => renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy))
+            return;
+
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer == null)
+                continue;
+
+            ActivateTransformChain(renderer.transform);
+            Undo.RecordObject(renderer, "Enable experiment KILLER renderer");
+            renderer.enabled = true;
+            EditorUtility.SetDirty(renderer);
+            return;
+        }
+    }
+
     private static void EnsureSecondFloorAccessRamp()
     {
         CreateOrTuneRampSegment(
@@ -406,9 +514,16 @@ public static class ExperimentSceneTools
     {
         CreateOrTuneInvisibleBox(
             "SecondFloorWalkableFloor_Auto",
-            new Vector3(-23.75f, 2.94f, -14.85f),
+            new Vector3(-23.95f, 2.94f, -14.95f),
             Quaternion.identity,
-            new Vector3(4.9f, 0.18f, 4.9f));
+            new Vector3(5.65f, 0.18f, 5.1f));
+
+        CreateOrTuneInvisibleBox(
+            "SecondFloorStairBridge_Auto",
+            new Vector3(-26.55f, 2.94f, -16.65f),
+            Quaternion.identity,
+            new Vector3(1.95f, 0.18f, 1.95f));
+        SetColliderTrigger("SecondFloorStairBridge_Auto", true);
 
         CreateOrTuneInvisibleBox(
             "SecondFloorStairLanding_Auto",
@@ -443,6 +558,45 @@ public static class ExperimentSceneTools
             new Vector3(-26.35f, 3.95f, -12.85f),
             Quaternion.identity,
             new Vector3(0.22f, 2.0f, 1.0f));
+    }
+
+    private static void EnsureOldHouseInteriorCollisionShell()
+    {
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorFirstFloor_Auto",
+            new Vector3(-25.2f, 0.05f, -17.15f),
+            Quaternion.identity,
+            new Vector3(9.4f, 0.1f, 8.9f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorNorthWall_Auto",
+            new Vector3(-25.2f, 1.45f, -12.55f),
+            Quaternion.identity,
+            new Vector3(9.4f, 2.8f, 0.22f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorWestWall_Auto",
+            new Vector3(-30.0f, 1.45f, -16.85f),
+            Quaternion.identity,
+            new Vector3(0.22f, 2.8f, 8.15f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorEastWall_Auto",
+            new Vector3(-20.45f, 1.45f, -16.85f),
+            Quaternion.identity,
+            new Vector3(0.22f, 2.8f, 8.15f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorSouthWall_Left_Auto",
+            new Vector3(-28.45f, 1.45f, -21.55f),
+            Quaternion.identity,
+            new Vector3(3.0f, 2.8f, 0.22f));
+
+        CreateOrTuneInvisibleBox(
+            "OldHouseInteriorSouthWall_Right_Auto",
+            new Vector3(-21.9f, 1.45f, -21.55f),
+            Quaternion.identity,
+            new Vector3(2.8f, 2.8f, 0.22f));
     }
 
     private static void EnsureDoorwayAccessAssist()
@@ -614,8 +768,8 @@ public static class ExperimentSceneTools
         Bounds bounds = collider.bounds;
         Vector2 center2 = new Vector2(bounds.center.x, bounds.center.z);
         Vector2 stair2 = new Vector2(-27.6f, -16.0f);
-        return Vector2.Distance(center2, stair2) <= 1.35f &&
-               bounds.center.y >= 1.0f &&
+        return Vector2.Distance(center2, stair2) <= 2.25f &&
+               bounds.center.y >= 0.35f &&
                bounds.center.y <= 3.0f &&
                bounds.size.y >= 1.0f &&
                bounds.size.x >= 1.5f &&

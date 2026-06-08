@@ -113,9 +113,6 @@ public sealed class DoorwayHouseCollisionGate : MonoBehaviour
 
     private void SetCollisionIgnored(bool ignored)
     {
-        if (_isIgnoring == ignored)
-            return;
-
         if (_playerController != null && _houseCollider != null)
             Physics.IgnoreCollision(_playerController, _houseCollider, ignored);
 

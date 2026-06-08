@@ -89,11 +89,16 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
 
         RequireNamedRuntimeObject("SecondFloorAccessRamp_Auto");
         RequireNamedRuntimeObject("SecondFloorWalkableFloor_Auto");
+        RequireNamedRuntimeObject("SecondFloorStairBridge_Auto");
         RequireNamedRuntimeObject("SecondFloorStairLanding_Auto");
         RequireNamedRuntimeObject("SecondFloorBoundaryWall_Auto_North");
         RequireNamedRuntimeObject("SecondFloorBoundaryWall_Auto_South");
         RequireNamedRuntimeObject("SecondFloorBoundaryWall_Auto_East");
         RequireNamedRuntimeObject("SecondFloorBoundaryWall_Auto_West");
+        RequireNamedRuntimeObject("OldHouseInteriorFirstFloor_Auto");
+        RequireNamedRuntimeObject("OldHouseInteriorNorthWall_Auto");
+        RequireNamedRuntimeObject("OldHouseInteriorSouthWall_Left_Auto");
+        RequireNamedRuntimeObject("OldHouseInteriorSouthWall_Right_Auto");
         RequireNamedRuntimeObject("DoorEntranceThresholdBridge_Auto");
         RequireNamedRuntimeObject("DoorEntranceRampOutside_Auto");
         RequireNamedRuntimeObject("DoorEntranceRampInside_Auto");
@@ -104,6 +109,7 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
         RequireHouseCollisionGate("StairHouseCollisionGate_Auto", "stair_house_collision_gate");
         RequireTriggerCollider("SecondFloorAccessRamp_Auto", "stair_ramp_trigger");
         RequireTriggerCollider("SecondFloorAccessRamp_Landing_Auto", "stair_ramp_landing_trigger");
+        RequireTriggerCollider("SecondFloorStairBridge_Auto", "stair_bridge_trigger");
         RequireTriggerCollider("SecondFloorStairLanding_Auto", "stair_landing_trigger");
         RequirePrimaryHouseCollider();
         RequireNamedRuntimeObject("ExperimentMarker_StairsReached_Auto");
@@ -123,12 +129,34 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
 
             found = true;
             if (!collider.gameObject.activeInHierarchy || !collider.enabled || collider.isTrigger)
+            {
+                if (IsHouseColliderTemporarilyBypassed())
+                    return;
+
                 Warn("primary_house_collider_disabled", $"{PrimaryHouseColliderName} is not active enabled solid collision.");
+            }
             return;
         }
 
         if (!found)
             Warn("primary_house_collider_missing", $"{PrimaryHouseColliderName} is missing; old-house walls/floors may be non-solid.");
+    }
+
+    private static bool IsHouseColliderTemporarilyBypassed()
+    {
+        StairTraversalAssistZone stairAssist = FindFirstObjectByType<StairTraversalAssistZone>();
+        if (stairAssist != null && stairAssist.IsIgnoringHouseCollider)
+            return true;
+
+        DoorwayHouseCollisionGate[] gates = FindObjectsByType<DoorwayHouseCollisionGate>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < gates.Length; i++)
+        {
+            DoorwayHouseCollisionGate gate = gates[i];
+            if (gate != null && gate.IsIgnoring)
+                return true;
+        }
+
+        return false;
     }
 
     private void RequireHouseCollisionGate(string objectName, string code)
@@ -190,8 +218,27 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
         if (!killer.AvoidsStairRouteDuringChase)
             Warn("killer_stair_safety_disabled", "Killer stair/2F safety hold is disabled; forced chase may enter the stair route.");
 
+        if (!HasVisibleRenderer(killer))
+            Warn("killer_invisible", "KillerAI has no active enabled Renderer; the KILLER object may be invisible in Play Mode.");
+
         CheckPath(agent.transform.position, player.transform.position, "killer_to_player_start");
         CheckPath(agent.transform.position, objective.transform.position, "killer_to_objective_area");
+    }
+
+    private static bool HasVisibleRenderer(KillerAI killer)
+    {
+        if (killer == null || !killer.gameObject.activeInHierarchy)
+            return false;
+
+        Renderer[] renderers = killer.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer renderer = renderers[i];
+            if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy)
+                return true;
+        }
+
+        return false;
     }
 
     private void CheckPath(Vector3 from, Vector3 to, string code)
