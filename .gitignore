@@ -1,4 +1,4 @@
-# ===== Unity 자동 생성 폴더 (폴더 단위 제외) =====
+# Unity generated folders
 [Ll]ibrary/
 [Tt]emp/
 [Oo]bj/
@@ -8,28 +8,50 @@
 [Uu]ser[Ss]ettings/
 [Mm]emoryCaptures/
 
-# ===== IDE / 시스템 =====
+# IDE and generated project files
 .vs/
 .idea/
 .vscode/
 *.csproj
 *.sln
 *.user
+*.pidb
+*.booproj
+*.svd
 
-# ===== 확장자 단위 제외 =====
-*.psd
-*.7z
-*.tar.7z
-*.dylib
-*.dll
-*.pdb
-*.apk
-*.aab
+# Local Codex/MCP state
+.codex/
+.mcp.json
 
-# ===== Node.js =====
+# Node.js
 node_modules/
 npm-debug.log*
+yarn-error.log*
 
-# ===== 환경 변수 (절대 커밋 금지) =====
+# SmartThings secrets (절대 커밋 금지)
 .env
 .env.*
+!.env.example
+SmartThings_server/logs/
+
+# Unity/editor temporary files
+*.tmp
+*.bak
+*.pid
+*.pdb
+sysinfo.txt
+
+# Build artifacts
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.dylib
+*.dll
+
+# Large archives
+*.7z
+*.zip
+*.tar
+*.tar.gz
+*.psd
