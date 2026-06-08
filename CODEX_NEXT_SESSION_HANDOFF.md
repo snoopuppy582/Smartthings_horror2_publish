@@ -81,7 +81,7 @@ Do not mark the overall goal complete until physical smart light/fan response is
 - `NonLethalHitFeedback`: red flash/vignette, camera shake, brief stun/audio hooks.
 - `PlayerHealth`: experiment sessions use nonlethal `player_hit` logging instead of death.
 - `SmartThingsEventSender`: sends `session_id`, `condition`, `elapsed_sec`, `hit_count`.
-- `KillerAI`/`EnemyAI`: report `killer_near`, chase/attack, nonlethal hit, resume chase.
+- `KillerAI`/`EnemyAI`: report `killer_near`, chase/attack, nonlethal hit, resume chase. Experiment defaults set KILLER chase speed to `1.75m/s`, about 60% of the player's `2.9m/s` walk speed.
 - `FirstPersonController`: tuned movement, input lock, step/doorway assist.
 - `FootstepAnimationEventReceiver`: absorbs footstep animation events to reduce console noise.
 - `LanternController`: auto-generates a held player lantern rig with forward Spot Light, fill Light, flicker, and scenario-event reactions.
@@ -89,6 +89,8 @@ Do not mark the overall goal complete until physical smart light/fan response is
 - `AmbientAudioManager`: layers local template BGM/SFX/heartbeat over the procedural bed, repairs missing child `AudioSource` objects, and switches chase/jump-scare music immediately on scenario events.
 - `DoorwayHouseCollisionGate`: keeps `Old_House_windows_separated_Collider` enabled for old-house wall/floor collision, but temporarily ignores collision between the player and that mesh collider inside the doorway gate to prevent body-rubbing at the entrance.
 - `StairHouseCollisionGate_Auto`: same collision-gate pattern for the stair route where the old-house mesh collider overlaps the player capsule path. The runtime/bootstrap/editor config now uses an explicit larger stair gate size/center.
+- `SecondFloorAccessRamp_Auto` / `SecondFloorAccessRamp_Landing_Auto`: solid walkable ramp colliders. These are not triggers and are what the player physically walks up with WASD.
+- `StairTraversalAssistZone_Auto`: no longer lifts/moves the player. It only bypasses the broad old-house mesh collider while the player is already moving through the stair route.
 - `KillerPlayerCollisionBypass`: keeps the killer visible and attack-capable while preventing any killer child collider from physically blocking the player route.
 - `SecondFloorWalkableFloor_Auto` / `SecondFloorStairLanding_Auto`: invisible solid support colliders preventing 2F fall-through near the objective route.
 - Legacy root `Cube (1)` stair blocker near `-27.6,2.0,-16.0` is converted to a trigger by scene prep/runtime bootstrap; it was a large vertical BoxCollider blocking the lower stair capsule route.
@@ -190,7 +192,7 @@ Current issue:
 - Codex MCP tool calls return `Transport closed`.
 - Editor log shows MCP WebSocket clients disconnecting.
 - Treat this as MCP transport instability, not a gameplay code failure.
-- MCP Unity stops its Unity WebSocket server when Unity exits Edit Mode to enter PlayMode, so direct MCP use during PlayMode is not a reliable validation path for this package.
+- MCP Unity direct tool calls can still fail with `Transport closed` even when `127.0.0.1:8090` is listening. Treat direct MCP PlayMode driving as unreliable in this environment; use the flag-based Unity reports for proof.
 
 Recommended MCP recovery:
 
@@ -199,7 +201,7 @@ Recommended MCP recovery:
 3. Stop/start the MCP server.
 4. Run `powershell -ExecutionPolicy Bypass -File Smartthings_horror2\scripts\mcp-unity-health.ps1` from `Smartthing_server`.
 5. Start a fresh Codex session from the Unity project root or `Smartthing_server`.
-6. First call `get_console_logs` in Edit Mode only.
+6. First call `get_console_logs` in Edit Mode only. If it still returns `Transport closed`, continue with the flag-based QA/smoke path instead of blocking on MCP.
 
 Do not rely on MCP to drive PlayMode. Use `Tools > Experiment > Run Play Mode Smoke Test (...)` and the generated JSON reports for PlayMode verification.
 
@@ -280,5 +282,6 @@ Tools > Experiment > Run Play Mode Smoke Test (GameWithIoT Simulation)
 - GameWithIoT simulation smoke: `Temp/experiment_playmode_iot_smoke.json` passed with `success: true`, `errorCount: 0`, `warningCount: 0`.
 - Both PlayMode reports confirm `Synthetic WASD player route reached 2F using FirstPersonController`.
 - Both PlayMode reports confirm visible `KILLER` placement at the experiment route with active renderers and a player collision bypass.
-- The stair/2F route now uses `OldHouseInterior*_Auto`, `SecondFloorWalkableFloor_Auto`, trigger transition helpers, and `StairTraversalAssistZone_Auto` instead of relying on the malformed generic `Cube` blocker or the broad old-house mesh collider alone.
-- MCP transport can still time out around PlayMode. The reliable fallback is to create `Temp/run_experiment_submission_qa.flag`, `Temp/run_experiment_playmode_smoke.flag`, or `Temp/run_experiment_iot_smoke.flag`; the Unity editor auto-run hook consumes the flag and writes the corresponding report.
+- The stair/2F route now uses `SecondFloorAccessRamp_Auto` and `SecondFloorAccessRamp_Landing_Auto` as solid walkable ramp colliders. `StairTraversalAssistZone_Auto` only bypasses the broad old-house mesh collider and does not apply scripted lift.
+- KILLER experiment pacing is now `walkSpeed=1.05m/s`, `chaseSpeed=1.75m/s`, with `8s` hit cooldown and post-hit backoff.
+- MCP transport can still return `Transport closed` even while port `8090` is open. The reliable fallback is to create `Temp/run_experiment_submission_qa.flag`, `Temp/run_experiment_playmode_smoke.flag`, or `Temp/run_experiment_iot_smoke.flag`; the Unity editor auto-run hook consumes the flag and writes the corresponding report.

@@ -13,9 +13,6 @@ public sealed class StairTraversalAssistZone : MonoBehaviour
     [SerializeField] private Vector3 zoneCenter = new Vector3(0f, 1.15f, 0f);
     [SerializeField] private float insidePadding = 0.35f;
     [SerializeField] private float activationDot = 0.12f;
-    [SerializeField] private float progressLeadMeters = 2.2f;
-    [SerializeField] private float liftSpeed = 8.5f;
-    [SerializeField] private float forwardAssistSpeed = 1.45f;
     [SerializeField] private float reacquireIntervalSec = 0.5f;
 
     private BoxCollider _zoneCollider;
@@ -58,9 +55,6 @@ public sealed class StairTraversalAssistZone : MonoBehaviour
         upperPoint = routeUpperPoint;
         zoneSize = localSize;
         zoneCenter = localCenter;
-        progressLeadMeters = Mathf.Max(progressLeadMeters, 2.2f);
-        liftSpeed = Mathf.Max(liftSpeed, 8.5f);
-        forwardAssistSpeed = Mathf.Max(forwardAssistSpeed, 1.45f);
         ConfigureZoneCollider();
     }
 
@@ -97,31 +91,7 @@ public sealed class StairTraversalAssistZone : MonoBehaviour
         if (isPlayerController)
             SetHouseCollisionIgnored(true);
 
-        Vector3 flatOffset = new Vector3(
-            controller.transform.position.x - lowerPoint.x,
-            0f,
-            controller.transform.position.z - lowerPoint.z);
-        float progress = Mathf.Clamp01(Vector3.Dot(flatOffset, pathDirection) / pathLength);
-        float leadProgress = Mathf.Clamp01(progress + Mathf.Max(0f, progressLeadMeters) / pathLength);
-        float targetY = Mathf.Lerp(lowerPoint.y, upperPoint.y, leadProgress);
-        float verticalDelta = targetY - controller.transform.position.y;
-
-        bool moved = false;
-        bool lifted = false;
-        if (verticalDelta > 0.015f)
-        {
-            Vector3 lift = Vector3.up * Mathf.Min(verticalDelta, Mathf.Max(0.1f, liftSpeed) * deltaTime);
-            moved |= MoveController(controller, lift, allowPositionFallback: true);
-            lifted = moved;
-        }
-
-        Vector3 forwardAssist = pathDirection * (Mathf.Max(0f, forwardAssistSpeed) * deltaTime);
-        if (!lifted && forwardAssist.sqrMagnitude > 0.000001f)
-        {
-            moved |= MoveController(controller, forwardAssist, allowPositionFallback: false);
-        }
-
-        return moved;
+        return false;
     }
 
     private void OnDisable()
@@ -132,36 +102,6 @@ public sealed class StairTraversalAssistZone : MonoBehaviour
     public void ReleaseHouseCollider()
     {
         SetHouseCollisionIgnored(false);
-    }
-
-    private static bool MoveController(CharacterController controller, Vector3 delta, bool allowPositionFallback)
-    {
-        if (controller == null || !controller.enabled || delta.sqrMagnitude < 0.000001f)
-            return false;
-
-        Vector3 before = controller.transform.position;
-        controller.Move(delta);
-        Vector3 moved = controller.transform.position - before;
-
-        if (allowPositionFallback && delta.y > 0f)
-        {
-            if (moved.y >= delta.y * 0.35f)
-                return true;
-        }
-        else if (moved.magnitude >= delta.magnitude * 0.35f)
-        {
-            return true;
-        }
-
-        if (!allowPositionFallback)
-            return false;
-
-        bool wasEnabled = controller.enabled;
-        controller.enabled = false;
-        controller.transform.position = before + delta;
-        controller.enabled = wasEnabled;
-        Physics.SyncTransforms();
-        return true;
     }
 
     private void ConfigureZoneCollider()

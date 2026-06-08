@@ -11,7 +11,7 @@ Unity 기반 2분 공포 체험과 SmartThings 전등/콘센트 반응을 연결
 - Play length: 120 seconds
 - Objective: recover the 2F device part
 - Conditions: `GameOnly`, `GameWithIoT`
-- Current local status: automated Unity QA and PlayMode smokes pass in both conditions. The reports verify synthetic WASD traversal from the lower stair route to 2F, visible `KILLER` placement, lantern visibility, horror ambience/BGM, and timed scenario events. Real SmartThings evidence still requires `.env` credentials and a physical-device smoke run.
+- Current local status: automated Unity QA and PlayMode smokes pass in both conditions. The reports verify synthetic WASD traversal from the lower stair route to 2F on solid ramp colliders, visible `KILLER` placement, lantern visibility, horror ambience/BGM, and timed scenario events. Real SmartThings evidence still requires `.env` credentials and a physical-device smoke run.
 
 ## Core Runtime Flow
 
@@ -29,7 +29,7 @@ Unity 기반 2분 공포 체험과 SmartThings 전등/콘센트 반응을 연결
 - `Assets/Scripts/Experiment/ExperimentDirector.cs`: session timer, condition, scenario cues, success/fail logs.
 - `Assets/Scripts/KillerAI.cs`: NavMesh chase, attack validation, hit cooldown, post-hit backoff.
 - `Assets/Scripts/Player/FirstPersonController.cs`: first-person movement, step/doorway assist, current move direction.
-- `Assets/Scripts/Experiment/StairTraversalAssistZone.cs`: stair traversal assist for the 2F route.
+- `Assets/Scripts/Experiment/StairTraversalAssistZone.cs`: stair-route house-mesh collision bypass only; it does not lift or move the player.
 - `Assets/Scripts/Game/ExperimentSceneTools.cs`: Unity editor tools for scene preparation and QA.
 - `Assets/Scripts/Experiment/ExperimentBootstrapper.cs`: runtime fallback setup if required scene helpers are missing.
 - `Assets/Scripts/Experiment/ExperimentPlayModeSmokeRunner.cs`: automated PlayMode smoke checks.
@@ -128,6 +128,7 @@ The killer is tuned for readable IoT feedback instead of constant punishment:
 - Attack recovery: 1.6 seconds
 - Post-hit backoff: 3.2 meters for at least 1.8 seconds
 - Killer-near report interval: 18 seconds
+- Walk/chase speed: `1.05m/s` patrol, `1.75m/s` chase, about 60% of the player's `2.9m/s` walk speed.
 - Hits are nonlethal during the experiment and are logged as `player_hit`.
 
 This gives the player enough time to feel Smart LED/fan responses before the next attack can occur.
@@ -137,8 +138,9 @@ This gives the player enough time to feel Smart LED/fan responses before the nex
 The old-house mesh collider is kept enabled for walls/floors, but the doorway and stair route use narrow runtime gates so the player does not need to jump or rub against invisible geometry. `Prepare Active Scene` and `ExperimentBootstrapper` both create/maintain:
 
 - `OldHouseInterior*_Auto` shell colliders for the visible house interior.
+- `SecondFloorAccessRamp_Auto` and `SecondFloorAccessRamp_Landing_Auto` as solid walkable stair-ramp colliders.
 - `SecondFloorWalkableFloor_Auto` and `SecondFloorStairBridge_Auto` for the 2F route.
-- `StairTraversalAssistZone_Auto` for smooth first-person stair traversal.
+- `StairTraversalAssistZone_Auto` to bypass only the broad old-house mesh collider while the player is already moving through the stair route.
 - `KILLER` placement near the house with visible renderers and player collision bypass.
 
 ## Current Known Warnings

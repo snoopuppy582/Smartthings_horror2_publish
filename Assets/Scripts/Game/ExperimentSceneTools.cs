@@ -323,8 +323,8 @@ public static class ExperimentSceneTools
             Undo.RecordObject(agent, "Tune Killer NavMeshAgent");
             agent.radius = 0.4f;
             agent.height = 2f;
-            agent.speed = 4.0f;
-            agent.acceleration = 12f;
+            agent.speed = 1.75f;
+            agent.acceleration = 6f;
             agent.angularSpeed = 300f;
             agent.stoppingDistance = 1.0f;
             agent.baseOffset = 0f;
@@ -338,8 +338,8 @@ public static class ExperimentSceneTools
         SetSerializedFloat(killer, "detectRange", 18f);
         SetSerializedFloat(killer, "loseRange", 30f);
         SetSerializedFloat(killer, "catchRange", 1.3f);
-        SetSerializedFloat(killer, "walkSpeed", 1.35f);
-        SetSerializedFloat(killer, "chaseSpeed", 4.0f);
+        SetSerializedFloat(killer, "walkSpeed", 1.05f);
+        SetSerializedFloat(killer, "chaseSpeed", 1.75f);
         SetSerializedFloat(killer, "killerNearDistance", 6f);
         SetSerializedFloat(killer, "killerNearReportInterval", 18f);
         SetSerializedFloat(killer, "hitCooldown", 8f);
@@ -493,7 +493,7 @@ public static class ExperimentSceneTools
             width: 4.8f,
             thickness: 0.2f,
             overlap: 0.9f);
-        SetColliderTrigger("SecondFloorAccessRamp_Auto", true);
+        SetColliderTrigger("SecondFloorAccessRamp_Auto", false);
 
         CreateOrTuneStairAssistSteps();
 
@@ -504,7 +504,7 @@ public static class ExperimentSceneTools
             width: 4.2f,
             thickness: 0.18f,
             overlap: 0.65f);
-        SetColliderTrigger("SecondFloorAccessRamp_Landing_Auto", true);
+        SetColliderTrigger("SecondFloorAccessRamp_Landing_Auto", false);
 
         DisableStaleSecondFloorAccessRampSegments();
         DisableStaleSecondFloorAccessStepSegments();

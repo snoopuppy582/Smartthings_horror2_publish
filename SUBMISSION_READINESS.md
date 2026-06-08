@@ -11,9 +11,9 @@ The local build is considered submission-ready, excluding real-device evidence, 
 - GameOnly PlayMode smoke reports `success: true`, `errorCount: 0`, `warningCount: 0`.
 - GameWithIoT simulation smoke reports `success: true`, `errorCount: 0`, `warningCount: 0`, and accepted server requests for timed scenario events.
 - Doorway movement is verified by capsule probe, while the old-house mesh collider stays enabled for walls and floors.
-- Stair movement is verified by capsule probe and synthetic FirstPersonController WASD movement from the lower stair approach through the landing to the 2F objective route.
+- Stair movement is verified by capsule probe and synthetic FirstPersonController WASD movement over solid ramp colliders from the lower stair approach through the landing to the 2F objective route.
 - 2F route and objective area have solid support colliders and do not fall through.
-- Killer setup includes visible renderers, deterministic placement near the house, a player collision bypass, and vertical relocation guard so it cannot physically block the stair route or relocate onto a different floor during forced chase.
+- Killer setup includes visible renderers, deterministic placement near the house, player collision bypass, slow chase pacing around 60% of player walk speed, and vertical relocation guard so it cannot physically block the stair route or relocate onto a different floor during forced chase.
 - Player lantern, procedural ambience, external exploration BGM, and chase BGM are verified in smoke reports.
 - Killer pathing reaches the player start and 2F objective route without NavMesh failure.
 - Timeout failure, objective success, result UI, and JSONL experiment logs are verified.
@@ -89,10 +89,11 @@ Before submission, play once in `GameOnly` and once in `GameWithIoT`:
 - Enter the house without jumping or rubbing against the doorway.
 - Try pushing into the house walls near the entrance and 1F/2F route; the old-house mesh collider should remain solid.
 - Reach the 2F objective route and stand near the stair landing/objective without falling through the floor.
+- Walk up the stair route normally with WASD; there should be no scripted lift or sudden Y-axis snap.
 - Confirm the held lantern gives enough forward visibility without making the whole map bright.
 - Confirm low horror ambience is audible and grows during ghost/killer/chase beats.
 - Confirm external BGM/SFX starts during exploration and switches into chase music when the scenario escalates.
-- Confirm killer pressure/chase is visible and not instant unfair contact.
+- Confirm killer pressure/chase is visible, slow enough to read, and not instant unfair contact.
 - Confirm hit feedback is nonlethal and logs `player_hit`.
 - Confirm the 120-second scenario exposes multiple IoT beats: ghost hint, killer pressure, blackout, and chase.
 - Collect the 2F objective and see `Mission Success`.

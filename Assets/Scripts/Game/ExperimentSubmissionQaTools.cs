@@ -426,10 +426,24 @@ public static class ExperimentSubmissionQaTools
 
     private static void CheckStairTransitionColliders(QaReport report)
     {
-        RequireTriggerCollider(report, "SecondFloorAccessRamp_Auto");
-        RequireTriggerCollider(report, "SecondFloorAccessRamp_Landing_Auto");
+        RequireSolidCollider(report, "SecondFloorAccessRamp_Auto");
+        RequireSolidCollider(report, "SecondFloorAccessRamp_Landing_Auto");
         RequireTriggerCollider(report, "SecondFloorStairBridge_Auto");
         RequireTriggerCollider(report, "SecondFloorStairLanding_Auto");
+    }
+
+    private static void RequireSolidCollider(QaReport report, string objectName)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        Collider collider = obj != null ? obj.GetComponent<Collider>() : null;
+        if (collider == null)
+        {
+            report.errors.Add($"{objectName} has no Collider.");
+            return;
+        }
+
+        if (collider.isTrigger)
+            report.errors.Add($"{objectName} must be solid so the player naturally walks up the stair ramp instead of being lifted by code.");
     }
 
     private static void RequireTriggerCollider(QaReport report, string objectName)
@@ -557,6 +571,13 @@ public static class ExperimentSubmissionQaTools
         RequireComponent<KillerPlayerCollisionBypass>(report, killer.gameObject, "KillerPlayerCollisionBypass");
         if (!killer.AvoidsStairRouteDuringChase)
             report.errors.Add("Killer stair/2F safety hold is disabled.");
+        if (killer.WalkSpeed > 1.2f)
+            report.errors.Add($"Killer walk speed is too fast for slow horror pacing: {killer.WalkSpeed:0.00}m/s.");
+        if (killer.ChaseSpeed > 1.9f)
+            report.errors.Add($"Killer chase speed is too fast for 60% player-walk pacing: {killer.ChaseSpeed:0.00}m/s.");
+        UnityEngine.AI.NavMeshAgent agent = killer.GetComponent<UnityEngine.AI.NavMeshAgent>();
+        if (agent != null && agent.speed > 1.9f)
+            report.errors.Add($"Killer NavMeshAgent speed is too fast for 60% player-walk pacing: {agent.speed:0.00}m/s.");
         if (!HasVisibleRenderer(killer))
             report.errors.Add("KillerAI has no active enabled Renderer; KILLER will be invisible in Play Mode.");
         if (killer.GetComponentInChildren<Animator>(true) == null)

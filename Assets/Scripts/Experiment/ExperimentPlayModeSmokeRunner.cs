@@ -435,10 +435,24 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
 
     private static void CheckStairTransitionColliders(SmokeReport report)
     {
-        RequireTriggerCollider(report, "SecondFloorAccessRamp_Auto");
-        RequireTriggerCollider(report, "SecondFloorAccessRamp_Landing_Auto");
+        RequireSolidCollider(report, "SecondFloorAccessRamp_Auto");
+        RequireSolidCollider(report, "SecondFloorAccessRamp_Landing_Auto");
         RequireTriggerCollider(report, "SecondFloorStairBridge_Auto");
         RequireTriggerCollider(report, "SecondFloorStairLanding_Auto");
+    }
+
+    private static void RequireSolidCollider(SmokeReport report, string objectName)
+    {
+        GameObject obj = FindObjectByName(objectName);
+        Collider collider = obj != null ? obj.GetComponent<Collider>() : null;
+        if (collider == null)
+        {
+            report.errors.Add($"{objectName} has no Collider.");
+            return;
+        }
+
+        if (collider.isTrigger)
+            report.errors.Add($"{objectName} must be solid so the player naturally walks up the stair ramp instead of being lifted by code.");
     }
 
     private static void RequireTriggerCollider(SmokeReport report, string objectName)
@@ -588,6 +602,12 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
             report.errors.Add($"Killer near report interval is too short for IoT cooldowns: {killer.KillerNearReportIntervalSec:0.0}s.");
         if (!killer.AvoidsStairRouteDuringChase)
             report.errors.Add("Killer stair/2F safety hold is disabled; forced chase may warp into the stair route.");
+        if (killer.WalkSpeed > 1.2f)
+            report.errors.Add($"Killer walk speed is too fast for slow horror pacing: {killer.WalkSpeed:0.00}m/s.");
+        if (killer.ChaseSpeed > 1.9f)
+            report.errors.Add($"Killer chase speed is too fast for 60% player-walk pacing: {killer.ChaseSpeed:0.00}m/s.");
+        if (agent.speed > 1.9f)
+            report.errors.Add($"Killer NavMeshAgent speed is too fast for 60% player-walk pacing: {agent.speed:0.00}m/s.");
 
         if (!agent.isOnNavMesh)
         {

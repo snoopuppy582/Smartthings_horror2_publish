@@ -95,7 +95,7 @@ public static class ExperimentBootstrapper
             width: 4.8f,
             thickness: 0.2f,
             overlap: 0.9f);
-        SetColliderTrigger("SecondFloorAccessRamp_Auto", true);
+        SetColliderTrigger("SecondFloorAccessRamp_Auto", false);
 
         CreateOrTuneStairAssistSteps();
 
@@ -106,7 +106,7 @@ public static class ExperimentBootstrapper
             width: 4.2f,
             thickness: 0.18f,
             overlap: 0.65f);
-        SetColliderTrigger("SecondFloorAccessRamp_Landing_Auto", true);
+        SetColliderTrigger("SecondFloorAccessRamp_Landing_Auto", false);
 
         DisableStaleSecondFloorAccessRampSegments();
         DisableStaleSecondFloorAccessStepSegments();
@@ -588,8 +588,8 @@ public static class ExperimentBootstrapper
         {
             agent.radius = 0.4f;
             agent.height = 2f;
-            agent.speed = 4.0f;
-            agent.acceleration = 12f;
+            agent.speed = 1.75f;
+            agent.acceleration = 6f;
             agent.angularSpeed = 300f;
             agent.stoppingDistance = 1.0f;
             agent.baseOffset = 0f;

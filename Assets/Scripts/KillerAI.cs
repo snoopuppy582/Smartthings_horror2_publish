@@ -15,8 +15,8 @@ public class KillerAI : MonoBehaviour
     [SerializeField] private float catchRange  = 1.3f; // 안 = 처치(게임오버)
 
     [Header("이동 속도")]
-    [SerializeField] private float walkSpeed  = 1.5f; // 배회
-    [SerializeField] private float chaseSpeed = 4.0f; // 추격
+    [SerializeField] private float walkSpeed  = 1.05f; // 배회
+    [SerializeField] private float chaseSpeed = 1.75f; // 추격: player walkSpeed 2.9m/s의 약 60%
 
     [Header("실험 이벤트")]
     [SerializeField] private float killerNearDistance = 6f;
@@ -89,6 +89,8 @@ public class KillerAI : MonoBehaviour
     public float PostHitBackoffDistance => postHitBackoffDistance;
     public float KillerNearReportIntervalSec => killerNearReportInterval;
     public bool AvoidsStairRouteDuringChase => avoidStairRouteDuringChase;
+    public float WalkSpeed => walkSpeed;
+    public float ChaseSpeed => chaseSpeed;
 
     private void Awake()
     {
@@ -112,7 +114,7 @@ public class KillerAI : MonoBehaviour
         agent.speed = walkSpeed;
         agent.stoppingDistance = Mathf.Max(agent.stoppingDistance, catchRange * 0.75f);
         agent.angularSpeed = Mathf.Max(agent.angularSpeed, 240f);
-        agent.acceleration = Mathf.Max(agent.acceleration, 10f);
+        agent.acceleration = Mathf.Max(agent.acceleration, 6f);
         if (agent.enabled && agent.isOnNavMesh)
             GoToNextPatrol();
     }
@@ -122,8 +124,8 @@ public class KillerAI : MonoBehaviour
         detectRange = 18f;
         loseRange = 30f;
         catchRange = 1.3f;
-        walkSpeed = 1.35f;
-        chaseSpeed = 4.0f;
+        walkSpeed = 1.05f;
+        chaseSpeed = 1.75f;
         killerNearDistance = 6f;
         killerNearReportInterval = 18f;
         hitCooldown = 8f;
@@ -158,7 +160,7 @@ public class KillerAI : MonoBehaviour
             agent.radius = 0.4f;
             agent.height = 2f;
             agent.speed = chaseSpeed;
-            agent.acceleration = 12f;
+            agent.acceleration = 6f;
             agent.angularSpeed = 300f;
             agent.stoppingDistance = 1.0f;
             agent.baseOffset = 0f;
