@@ -11,7 +11,7 @@ Unity 기반 2분 공포 체험과 SmartThings 전등/콘센트 반응을 연결
 - Play length: 120 seconds
 - Objective: recover the 2F device part
 - Conditions: `GameOnly`, `GameWithIoT`
-- Current local status: automated Unity QA and PlayMode smokes pass in both conditions. The reports verify synthetic WASD traversal from the lower stair route to 2F on solid ramp colliders, visible `KILLER` placement, lantern visibility, horror ambience/BGM, and timed scenario events. Real SmartThings evidence still requires `.env` credentials and a physical-device smoke run.
+- Current local status: automated Unity QA and PlayMode smokes pass in both conditions. The reports verify 1F interior movement, synthetic WASD traversal from the lower stair route to 2F on a narrow solid stair-ramp collider, visible `KILLER` placement, lantern visibility, horror ambience/BGM, and timed scenario events. Real SmartThings evidence still requires `.env` credentials and a physical-device smoke run.
 
 ## Core Runtime Flow
 
@@ -135,12 +135,13 @@ This gives the player enough time to feel Smart LED/fan responses before the nex
 
 ## Collision And 2F Route
 
-The old-house mesh collider is kept enabled for walls/floors, but the doorway and stair route use narrow runtime gates so the player does not need to jump or rub against invisible geometry. `Prepare Active Scene` and `ExperimentBootstrapper` both create/maintain:
+The broad old-house mesh collider is kept nonblocking because it does not match the visible interior closely enough for this experiment route. The actual playable collision is explicit and simple: interior shell boxes, a narrow solid stair-ramp collider aligned with the visible stairs, and solid 2F support near the objective. `Prepare Active Scene` and `ExperimentBootstrapper` both create/maintain:
 
 - `OldHouseInterior*_Auto` shell colliders for the visible house interior.
-- `SecondFloorAccessRamp_Auto` and `SecondFloorAccessRamp_Landing_Auto` as solid walkable stair-ramp colliders.
+- `SecondFloorAccessRamp_Auto` and `SecondFloorAccessRamp_Landing_Auto` as narrow solid walkable stair-ramp colliders.
+- Legacy `SecondFloorAccessStep_Auto_*` boxes are converted to triggers so they cannot block 1F headroom or interior movement.
 - `SecondFloorWalkableFloor_Auto` and `SecondFloorStairBridge_Auto` for the 2F route.
-- `StairTraversalAssistZone_Auto` to bypass only the broad old-house mesh collider while the player is already moving through the stair route.
+- `StairTraversalAssistZone_Auto` as a non-lifting safety trigger; it does not move the player.
 - `KILLER` placement near the house with visible renderers and player collision bypass.
 
 ## Current Known Warnings

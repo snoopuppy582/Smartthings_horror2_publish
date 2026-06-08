@@ -87,12 +87,13 @@ Do not mark the overall goal complete until physical smart light/fan response is
 - `LanternController`: auto-generates a held player lantern rig with forward Spot Light, fill Light, flicker, and scenario-event reactions.
 - `ProceduralHorrorAmbience`: generates low horror drone/noise/heartbeat ambience without external audio assets and reacts to scenario events.
 - `AmbientAudioManager`: layers local template BGM/SFX/heartbeat over the procedural bed, repairs missing child `AudioSource` objects, and switches chase/jump-scare music immediately on scenario events.
-- `DoorwayHouseCollisionGate`: keeps `Old_House_windows_separated_Collider` enabled for old-house wall/floor collision, but temporarily ignores collision between the player and that mesh collider inside the doorway gate to prevent body-rubbing at the entrance.
-- `StairHouseCollisionGate_Auto`: same collision-gate pattern for the stair route where the old-house mesh collider overlaps the player capsule path. The runtime/bootstrap/editor config now uses an explicit larger stair gate size/center.
-- `SecondFloorAccessRamp_Auto` / `SecondFloorAccessRamp_Landing_Auto`: solid walkable ramp colliders. These are not triggers and are what the player physically walks up with WASD.
-- `StairTraversalAssistZone_Auto`: no longer lifts/moves the player. It only bypasses the broad old-house mesh collider while the player is already moving through the stair route.
+- `DoorwayHouseCollisionGate`: legacy safety gate for the old-house broad mesh. The broad `Old_House_windows_separated_Collider` is now kept nonblocking; explicit interior shell colliders provide the playable walls/floors.
+- `StairHouseCollisionGate_Auto`: legacy safety trigger for the stair route. It should not be relied on for physical stair movement.
+- `SecondFloorAccessRamp_Auto` / `SecondFloorAccessRamp_Landing_Auto`: narrow solid walkable ramp colliders aligned with the visible stair route. These are what the player physically walks up with WASD.
+- `SecondFloorAccessStep_Auto_*`: legacy generated step boxes are converted to triggers so they cannot block 1F interior movement or headroom.
+- `StairTraversalAssistZone_Auto`: no longer lifts/moves the player. It is only a non-lifting safety trigger.
 - `KillerPlayerCollisionBypass`: keeps the killer visible and attack-capable while preventing any killer child collider from physically blocking the player route.
-- `SecondFloorWalkableFloor_Auto` / `SecondFloorStairLanding_Auto`: invisible solid support colliders preventing 2F fall-through near the objective route.
+- `SecondFloorWalkableFloor_Auto`: invisible solid support collider preventing 2F fall-through near the objective route.
 - Legacy root `Cube (1)` stair blocker near `-27.6,2.0,-16.0` is converted to a trigger by scene prep/runtime bootstrap; it was a large vertical BoxCollider blocking the lower stair capsule route.
 
 ## Implemented Unity Editor/QA Tools
@@ -282,6 +283,6 @@ Tools > Experiment > Run Play Mode Smoke Test (GameWithIoT Simulation)
 - GameWithIoT simulation smoke: `Temp/experiment_playmode_iot_smoke.json` passed with `success: true`, `errorCount: 0`, `warningCount: 0`.
 - Both PlayMode reports confirm `Synthetic WASD player route reached 2F using FirstPersonController`.
 - Both PlayMode reports confirm visible `KILLER` placement at the experiment route with active renderers and a player collision bypass.
-- The stair/2F route now uses `SecondFloorAccessRamp_Auto` and `SecondFloorAccessRamp_Landing_Auto` as solid walkable ramp colliders. `StairTraversalAssistZone_Auto` only bypasses the broad old-house mesh collider and does not apply scripted lift.
+- The stair/2F route now uses `SecondFloorAccessRamp_Auto` and `SecondFloorAccessRamp_Landing_Auto` as narrow solid walkable ramp colliders. Legacy `SecondFloorAccessStep_Auto_*` boxes are triggers so they cannot block 1F interior movement/headroom, and `StairTraversalAssistZone_Auto` does not apply scripted lift.
 - KILLER experiment pacing is now `walkSpeed=1.05m/s`, `chaseSpeed=1.75m/s`, with `8s` hit cooldown and post-hit backoff.
 - MCP transport can still return `Transport closed` even while port `8090` is open. The reliable fallback is to create `Temp/run_experiment_submission_qa.flag`, `Temp/run_experiment_playmode_smoke.flag`, or `Temp/run_experiment_iot_smoke.flag`; the Unity editor auto-run hook consumes the flag and writes the corresponding report.

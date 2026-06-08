@@ -17,6 +17,15 @@ public static class ExperimentSubmissionQaTools
     private const string MainScenePath = "Assets/Scenes/MainScene.unity";
     private const string PrimaryHouseColliderName = "Old_House_windows_separated_Collider";
     private static readonly float[] FallbackAngles = { 180f, 135f, -135f, 90f, -90f, 45f, -45f, 0f };
+    private static readonly Vector3[] InteriorRouteSamples =
+    {
+        new Vector3(-24.65f, 0.22f, -20.35f),
+        new Vector3(-27.70f, 0.22f, -19.30f),
+        new Vector3(-27.30f, 0.22f, -15.15f),
+        new Vector3(-24.20f, 0.22f, -13.85f),
+        new Vector3(-21.95f, 0.22f, -16.45f),
+        new Vector3(-24.65f, 0.22f, -20.35f),
+    };
 
     [MenuItem("Tools/Experiment/Run Submission QA")]
     public static void RunSubmissionQaFromMenu()
@@ -171,6 +180,7 @@ public static class ExperimentSubmissionQaTools
                 report.warnings.Add($"Player CharacterController radius is {controller.radius:0.00}; doorway-safe target is <= 0.24.");
             if (controller.stepOffset < 0.45f)
                 report.warnings.Add($"Player stepOffset is {controller.stepOffset:0.00}; small thresholds may catch.");
+            CheckInteriorCapsuleClearance(report, player, controller);
             CheckStairRouteCapsuleClearance(report, player, controller);
         }
 
@@ -331,6 +341,7 @@ public static class ExperimentSubmissionQaTools
     {
         Collider[] colliders = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         Collider activeSolidCollider = null;
+        Collider nonblockingCollider = null;
         int matchingCount = 0;
 
         foreach (Collider collider in colliders)
@@ -341,22 +352,30 @@ public static class ExperimentSubmissionQaTools
             matchingCount++;
             if (collider.gameObject.activeInHierarchy && collider.enabled && !collider.isTrigger)
                 activeSolidCollider = collider;
+            else
+                nonblockingCollider = collider;
         }
 
         if (matchingCount == 0)
         {
-            report.errors.Add($"{PrimaryHouseColliderName} not found; primary old-house wall/floor collision is missing.");
+            report.errors.Add($"{PrimaryHouseColliderName} not found; broad old-house mesh collider state cannot be audited.");
             return;
         }
 
-        if (activeSolidCollider == null)
+        if (activeSolidCollider != null)
         {
-            report.errors.Add($"{PrimaryHouseColliderName} exists but is not an active enabled solid collider.");
+            report.errors.Add($"{PrimaryHouseColliderName} is still solid; it can block 1F interior movement and the stair route. It must be disabled or trigger while OldHouseInterior*_Auto colliders provide walls/floors.");
             return;
         }
 
-        Bounds bounds = activeSolidCollider.bounds;
-        report.info.Add($"Primary house collider enabled: {activeSolidCollider.GetType().Name}, bounds={bounds.size.x:0.0}x{bounds.size.y:0.0}x{bounds.size.z:0.0}.");
+        if (nonblockingCollider == null)
+        {
+            report.errors.Add($"{PrimaryHouseColliderName} exists but no nonblocking collider instance could be confirmed.");
+            return;
+        }
+
+        Bounds bounds = nonblockingCollider.bounds;
+        report.info.Add($"Broad house mesh collider nonblocking: {nonblockingCollider.GetType().Name}, enabled={nonblockingCollider.enabled}, trigger={nonblockingCollider.isTrigger}, bounds={bounds.size.x:0.0}x{bounds.size.y:0.0}x{bounds.size.z:0.0}.");
     }
 
     private static void CheckSecondFloorSupport(QaReport report)
@@ -428,8 +447,32 @@ public static class ExperimentSubmissionQaTools
     {
         RequireSolidCollider(report, "SecondFloorAccessRamp_Auto");
         RequireSolidCollider(report, "SecondFloorAccessRamp_Landing_Auto");
+        RequireNoSolidStairStepColliders(report);
         RequireTriggerCollider(report, "SecondFloorStairBridge_Auto");
         RequireTriggerCollider(report, "SecondFloorStairLanding_Auto");
+    }
+
+    private static void RequireNoSolidStairStepColliders(QaReport report)
+    {
+        int found = 0;
+        GameObject[] objects = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < objects.Length; i++)
+        {
+            GameObject obj = objects[i];
+            if (obj == null || !obj.name.StartsWith("SecondFloorAccessStep_Auto_", StringComparison.Ordinal))
+                continue;
+
+            Collider collider = obj != null ? obj.GetComponent<Collider>() : null;
+            if (collider == null || !collider.enabled)
+                continue;
+
+            found++;
+            if (!collider.isTrigger)
+                report.errors.Add($"{obj.name} must be nonblocking. The stair route uses the narrow solid SecondFloorAccessRamp_Auto collider so old step boxes cannot block the 1F interior.");
+        }
+
+        if (found > 0)
+            report.info.Add($"Legacy stair step colliders are nonblocking triggers: {found}.");
     }
 
     private static void RequireSolidCollider(QaReport report, string objectName)
@@ -443,7 +486,7 @@ public static class ExperimentSubmissionQaTools
         }
 
         if (collider.isTrigger)
-            report.errors.Add($"{objectName} must be solid so the player naturally walks up the stair ramp instead of being lifted by code.");
+            report.errors.Add($"{objectName} must be solid so the player physically walks up the visible stair route instead of passing through it.");
     }
 
     private static void RequireTriggerCollider(QaReport report, string objectName)
@@ -494,6 +537,49 @@ public static class ExperimentSubmissionQaTools
         report.info.Add("Stair route capsule probe clear for Player dimensions.");
     }
 
+    private static void CheckInteriorCapsuleClearance(QaReport report, GameObject player, CharacterController controller)
+    {
+        float radius = controller.radius;
+        float height = Mathf.Max(controller.height, radius * 2f + 0.1f);
+
+        for (int i = 0; i < InteriorRouteSamples.Length; i++)
+        {
+            Vector3 sample = InteriorRouteSamples[i];
+            Vector3 bottom = sample + Vector3.up * (radius + 0.04f);
+            Vector3 top = sample + Vector3.up * (height - radius);
+            Collider[] hits = Physics.OverlapCapsule(bottom, top, radius, ~0, QueryTriggerInteraction.Ignore);
+
+            for (int h = 0; h < hits.Length; h++)
+            {
+                Collider hit = hits[h];
+                if (hit == null || IsAllowedInteriorProbeHit(hit, player, bottom, radius))
+                    continue;
+
+                report.errors.Add($"1F interior capsule probe blocked at sample {i} near {sample.x:0.0},{sample.y:0.0},{sample.z:0.0} by {DescribeCollider(hit)}.");
+                return;
+            }
+        }
+
+        report.info.Add("1F interior capsule probe clear for Player dimensions.");
+    }
+
+    private static bool IsAllowedInteriorProbeHit(Collider hit, GameObject player, Vector3 bottom, float radius)
+    {
+        if (hit.isTrigger)
+            return true;
+        if (hit.transform == player.transform || hit.transform.IsChildOf(player.transform))
+            return true;
+        if (hit.bounds.max.y < bottom.y - radius * 0.35f)
+            return true;
+
+        string objectName = hit.gameObject.name;
+        return objectName.StartsWith("DoorEntrance") ||
+               objectName.StartsWith("DoorwayHouseCollisionGate") ||
+               objectName.StartsWith("StairHouseCollisionGate") ||
+               objectName.StartsWith("StairTraversalAssistZone") ||
+               objectName.StartsWith("ExperimentMarker");
+    }
+
     private static bool IsAllowedStairRouteProbeHit(Collider hit, GameObject player, Vector3 bottom, float radius)
     {
         if (hit.isTrigger)
@@ -509,7 +595,7 @@ public static class ExperimentSubmissionQaTools
 
         string objectName = hit.gameObject.name;
         if (objectName == PrimaryHouseColliderName)
-            return IsConfiguredHouseCollisionGate("StairHouseCollisionGate_Auto");
+            return false;
 
         return objectName.StartsWith("SecondFloorAccessRamp") ||
                objectName.StartsWith("SecondFloorAccessStep") ||
@@ -629,7 +715,12 @@ public static class ExperimentSubmissionQaTools
         if (!objectiveNearMesh)
             report.warnings.Add("Objective is not near baked NavMesh; killer route to 2F objective area cannot be proven.");
         else
-            CheckNavMeshPath(report, killerHit.position, objectiveHit.position, "killer -> objective area");
+            CheckNavMeshPath(
+                report,
+                killerHit.position,
+                objectiveHit.position,
+                "killer -> objective area",
+                warnOnIncomplete: !killer.AvoidsStairRouteDuringChase);
     }
 
     private static bool TrySampleNavMesh(Vector3 position, float maxDistance, out NavMeshHit hit)
@@ -637,12 +728,15 @@ public static class ExperimentSubmissionQaTools
         return NavMesh.SamplePosition(position, out hit, maxDistance, NavMesh.AllAreas);
     }
 
-    private static void CheckNavMeshPath(QaReport report, Vector3 from, Vector3 to, string label)
+    private static void CheckNavMeshPath(QaReport report, Vector3 from, Vector3 to, string label, bool warnOnIncomplete = true)
     {
         NavMeshPath path = new NavMeshPath();
         if (!NavMesh.CalculatePath(from, to, NavMesh.AllAreas, path))
         {
-            report.warnings.Add($"NavMesh path check failed: {label}.");
+            if (warnOnIncomplete)
+                report.warnings.Add($"NavMesh path check failed: {label}.");
+            else
+                report.info.Add($"NavMesh path intentionally optional: {label}. KILLER stair safety hold keeps it off the player's stair/2F route.");
             return;
         }
 
@@ -654,7 +748,10 @@ public static class ExperimentSubmissionQaTools
                 return;
             }
 
-            report.warnings.Add($"NavMesh path is {path.status}: {label}.");
+            if (warnOnIncomplete)
+                report.warnings.Add($"NavMesh path is {path.status}: {label}.");
+            else
+                report.info.Add($"NavMesh path intentionally optional ({path.status}): {label}. KILLER stair safety hold keeps it off the player's stair/2F route.");
             return;
         }
 

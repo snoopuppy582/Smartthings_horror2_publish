@@ -35,7 +35,7 @@ public static class ExperimentSceneTools
     private static readonly Vector3 StairAssistExitTop = new Vector3(-24.55f, 2.94f, -15.35f);
     private static readonly Vector3 KillerSpawnPosition = new Vector3(-31.2f, 0.15f, -21.2f);
     private static readonly Vector3 KillerLookTarget = new Vector3(-24.6f, 0.15f, -17.2f);
-    private const int StairAssistStepCount = 8;
+    private static readonly Color ObjectivePurple = new Color(0.72f, 0.18f, 1f, 1f);
 
     [MenuItem("Tools/Experiment/Prepare Active Scene")]
     public static void PrepareActiveScene()
@@ -59,7 +59,7 @@ public static class ExperimentSceneTools
         EnsureStairHouseCollisionGate();
         EnsureStairTraversalAssistZone();
         int legacyStairBlockers = DisableLegacyStairBlockers();
-        int houseCollidersRestored = EnsurePrimaryHouseColliderEnabled();
+        int houseCollidersNeutralized = NeutralizePrimaryHouseMeshCollider();
         EnsureProgressMarkers();
         EnsureObjectiveItem();
         EnsureProceduralAmbience();
@@ -71,7 +71,7 @@ public static class ExperimentSceneTools
         EditorSceneManager.SaveScene(scene);
         AssetDatabase.ForceReserializeAssets(new[] { scene.path }, ForceReserializeAssetsOptions.ReserializeAssetsAndMetadata);
 
-        Debug.Log($"[ExperimentTools] Active scene prepared. Missing scripts removed: {removed}, prefab missing scripts removed: {prefabRemoved}, legacy stair blockers converted: {legacyStairBlockers}, house colliders restored: {houseCollidersRestored}, navMeshRebuilt: {navMeshRebuilt}, uiDuplicatesRemoved: {uiDuplicatesRemoved}");
+        Debug.Log($"[ExperimentTools] Active scene prepared. Missing scripts removed: {removed}, prefab missing scripts removed: {prefabRemoved}, legacy stair blockers converted: {legacyStairBlockers}, broad house mesh colliders neutralized: {houseCollidersNeutralized}, navMeshRebuilt: {navMeshRebuilt}, uiDuplicatesRemoved: {uiDuplicatesRemoved}");
     }
 
     [MenuItem("Tools/Experiment/Clean Killer Prefab Missing Scripts")]
@@ -490,24 +490,22 @@ public static class ExperimentSceneTools
             "SecondFloorAccessRamp_Auto",
             StairAssistBaseTop,
             StairAssistLandingTop,
-            width: 4.8f,
+            width: 1.35f,
             thickness: 0.2f,
-            overlap: 0.9f);
+            overlap: 0.25f);
         SetColliderTrigger("SecondFloorAccessRamp_Auto", false);
-
-        CreateOrTuneStairAssistSteps();
 
         CreateOrTuneRampSegment(
             "SecondFloorAccessRamp_Landing_Auto",
             StairAssistLandingTop,
             StairAssistExitTop,
-            width: 4.2f,
+            width: 1.55f,
             thickness: 0.18f,
-            overlap: 0.65f);
+            overlap: 0.25f);
         SetColliderTrigger("SecondFloorAccessRamp_Landing_Auto", false);
 
         DisableStaleSecondFloorAccessRampSegments();
-        DisableStaleSecondFloorAccessStepSegments();
+        DisableAllSecondFloorAccessStepSegments();
     }
 
     private static void EnsureSecondFloorWalkableColliders()
@@ -711,9 +709,9 @@ public static class ExperimentSceneTools
         EditorUtility.SetDirty(zone);
     }
 
-    private static int EnsurePrimaryHouseColliderEnabled()
+    private static int NeutralizePrimaryHouseMeshCollider()
     {
-        int restored = 0;
+        int changed = 0;
         Collider[] colliders = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         foreach (Collider collider in colliders)
         {
@@ -722,21 +720,20 @@ public static class ExperimentSceneTools
 
             if (!collider.gameObject.activeSelf)
             {
-                Undo.RecordObject(collider.gameObject, "Enable primary house collider object");
+                Undo.RecordObject(collider.gameObject, "Enable broad house mesh collider object");
                 collider.gameObject.SetActive(true);
-                restored++;
+                changed++;
             }
 
-            Undo.RecordObject(collider, "Enable primary house collider");
-            if (!collider.enabled)
-                restored++;
-            collider.enabled = true;
-            collider.isTrigger = false;
+            Undo.RecordObject(collider, "Disable broad house mesh collider");
+            if (collider.enabled)
+                changed++;
+            collider.enabled = false;
             EditorUtility.SetDirty(collider);
             EditorUtility.SetDirty(collider.gameObject);
         }
 
-        return restored;
+        return changed;
     }
 
     private static int DisableLegacyStairBlockers()
@@ -908,35 +905,6 @@ public static class ExperimentSceneTools
         CreateOrTuneInvisibleBox(objectName, center, rotation, scale);
     }
 
-    private static void CreateOrTuneStairAssistSteps()
-    {
-        Vector3 flatRun = new Vector3(
-            StairAssistLandingTop.x - StairAssistBaseTop.x,
-            0f,
-            StairAssistLandingTop.z - StairAssistBaseTop.z);
-        if (flatRun.sqrMagnitude < 0.0001f)
-            return;
-
-        Vector3 widthAxis = Vector3.Cross(Vector3.up, flatRun.normalized).normalized;
-        Quaternion rotation = Quaternion.LookRotation(widthAxis, Vector3.up);
-        const float treadLength = 0.84f;
-        const float treadWidth = 4.85f;
-        const float treadThickness = 0.16f;
-
-        for (int i = 0; i <= StairAssistStepCount; i++)
-        {
-            float t = i / (float)StairAssistStepCount;
-            Vector3 surface = Vector3.Lerp(StairAssistBaseTop, StairAssistLandingTop, t);
-            string objectName = $"SecondFloorAccessStep_Auto_{i:00}";
-            CreateOrTuneInvisibleBox(
-                objectName,
-                surface - Vector3.up * (treadThickness * 0.5f),
-                rotation,
-                new Vector3(treadLength, treadThickness, treadWidth));
-            SetColliderTrigger(objectName, true);
-        }
-    }
-
     private static void DisableStaleSecondFloorAccessRampSegments()
     {
         GameObject[] objects = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -961,7 +929,7 @@ public static class ExperimentSceneTools
         }
     }
 
-    private static void DisableStaleSecondFloorAccessStepSegments()
+    private static void DisableAllSecondFloorAccessStepSegments()
     {
         GameObject[] objects = UnityEngine.Object.FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < objects.Length; i++)
@@ -970,14 +938,10 @@ public static class ExperimentSceneTools
             if (obj == null || !obj.name.StartsWith("SecondFloorAccessStep_Auto_"))
                 continue;
 
-            string suffix = obj.name.Substring("SecondFloorAccessStep_Auto_".Length);
-            if (int.TryParse(suffix, out int index) && index >= 0 && index <= StairAssistStepCount)
-                continue;
-
             Collider collider = obj.GetComponent<Collider>();
             if (collider != null && !collider.isTrigger)
             {
-                Undo.RecordObject(collider, "Disable stale stair assist step");
+                Undo.RecordObject(collider, "Convert old stair step collider to trigger");
                 collider.isTrigger = true;
                 EditorUtility.SetDirty(collider);
             }
@@ -1075,7 +1039,7 @@ public static class ExperimentSceneTools
         Undo.RegisterCreatedObjectUndo(light.gameObject, "Create ObjectiveLight");
         light.transform.SetParent(objective.transform, false);
         light.type = LightType.Point;
-        light.color = new Color(0.2f, 0.95f, 1f, 1f);
+        light.color = ObjectivePurple;
         light.intensity = 2.5f;
         light.range = 4f;
 
@@ -1088,8 +1052,17 @@ public static class ExperimentSceneTools
     private static void TuneObjective(GameObject objective)
     {
         Undo.RecordObject(objective.transform, "Tune Objective Transform");
+        objective.transform.position = new Vector3(-23.9f, 3.55f, -15.2f);
         if (objective.transform.localScale.x < 0.5f)
             objective.transform.localScale = Vector3.one * 0.55f;
+
+        Renderer renderer = objective.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            Undo.RecordObject(renderer, "Tune Objective Material");
+            renderer.sharedMaterial = GetObjectiveMaterial();
+            EditorUtility.SetDirty(renderer);
+        }
 
         Collider collider = objective.GetComponent<Collider>();
         if (collider != null)
@@ -1109,10 +1082,23 @@ public static class ExperimentSceneTools
             Undo.RegisterCreatedObjectUndo(light.gameObject, "Create ObjectiveLight");
             light.transform.SetParent(objective.transform, false);
             light.type = LightType.Point;
-            light.color = new Color(0.2f, 0.95f, 1f, 1f);
+            light.color = ObjectivePurple;
             light.intensity = 2.5f;
             light.range = 4f;
             EditorUtility.SetDirty(light);
+        }
+        else
+        {
+            Transform lightTransform = objective.transform.Find("ObjectiveLight");
+            Light light = lightTransform != null ? lightTransform.GetComponent<Light>() : null;
+            if (light != null)
+            {
+                Undo.RecordObject(light, "Tune Objective Light");
+                light.color = ObjectivePurple;
+                light.intensity = 2.5f;
+                light.range = 4f;
+                EditorUtility.SetDirty(light);
+            }
         }
 
         EditorUtility.SetDirty(objective);
@@ -1408,7 +1394,10 @@ public static class ExperimentSceneTools
 
         Material existing = AssetDatabase.LoadAssetAtPath<Material>(path);
         if (existing != null)
+        {
+            ConfigureObjectiveMaterial(existing);
             return existing;
+        }
 
         if (!AssetDatabase.IsValidFolder(folder))
             AssetDatabase.CreateFolder("Assets", "Materials");
@@ -1419,13 +1408,19 @@ public static class ExperimentSceneTools
 
         Material material = new Material(shader);
         material.name = "ExperimentObjectiveGlow";
-        material.SetColor("_Color", new Color(0.2f, 0.95f, 1f, 1f));
-        material.SetColor("_BaseColor", new Color(0.2f, 0.95f, 1f, 1f));
-        material.SetColor("_EmissionColor", new Color(0.2f, 0.95f, 1f, 1f) * 2.5f);
-        material.EnableKeyword("_EMISSION");
+        ConfigureObjectiveMaterial(material);
         AssetDatabase.CreateAsset(material, path);
         AssetDatabase.SaveAssets();
         return material;
+    }
+
+    private static void ConfigureObjectiveMaterial(Material material)
+    {
+        material.SetColor("_Color", ObjectivePurple);
+        material.SetColor("_BaseColor", ObjectivePurple);
+        material.SetColor("_EmissionColor", ObjectivePurple * 2.8f);
+        material.EnableKeyword("_EMISSION");
+        EditorUtility.SetDirty(material);
     }
 
     private static void SetSerializedFloat(UnityEngine.Object target, string propertyName, float value)

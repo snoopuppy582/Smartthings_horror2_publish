@@ -1,6 +1,6 @@
 # Submission Readiness
 
-This project currently passes the automated GameOnly and simulated GameWithIoT checks, including the timed 120-second scenario cues, primary old-house collider, doorway/stair clearance gates, synthetic WASD traversal to 2F, visible KILLER placement, player lantern, procedural horror ambience, external template BGM/SFX, and second-floor support checks. Real SmartThings device verification still requires a local `.env` file with valid device credentials. IoT teammate setup is summarized in `IOT_TEAM_HANDOFF.md`.
+This project currently passes the automated GameOnly and simulated GameWithIoT checks, including the timed 120-second scenario cues, nonblocking broad old-house mesh collider, explicit 1F interior shell, stair clearance, synthetic WASD traversal to 2F, visible KILLER placement, player lantern, procedural horror ambience, external template BGM/SFX, and second-floor support checks. Real SmartThings device verification still requires a local `.env` file with valid device credentials. IoT teammate setup is summarized in `IOT_TEAM_HANDOFF.md`.
 
 ## Current Completion Targets
 
@@ -10,8 +10,8 @@ The local build is considered submission-ready, excluding real-device evidence, 
 - Unity Submission QA reports `errorCount: 0`; the only allowed warning is missing real SmartThings credentials during simulation.
 - GameOnly PlayMode smoke reports `success: true`, `errorCount: 0`, `warningCount: 0`.
 - GameWithIoT simulation smoke reports `success: true`, `errorCount: 0`, `warningCount: 0`, and accepted server requests for timed scenario events.
-- Doorway movement is verified by capsule probe, while the old-house mesh collider stays enabled for walls and floors.
-- Stair movement is verified by capsule probe and synthetic FirstPersonController WASD movement over solid ramp colliders from the lower stair approach through the landing to the 2F objective route.
+- Doorway and 1F interior movement are verified by capsule probe while explicit `OldHouseInterior*_Auto` shell colliders provide the playable walls/floors.
+- Stair movement is verified by capsule probe and synthetic FirstPersonController WASD movement over the narrow solid stair-ramp colliders from the lower stair approach through the landing to the 2F objective route.
 - 2F route and objective area have solid support colliders and do not fall through.
 - Killer setup includes visible renderers, deterministic placement near the house, player collision bypass, slow chase pacing around 60% of player walk speed, and vertical relocation guard so it cannot physically block the stair route or relocate onto a different floor during forced chase.
 - Player lantern, procedural ambience, external exploration BGM, and chase BGM are verified in smoke reports.
@@ -87,7 +87,7 @@ Before submission, play once in `GameOnly` and once in `GameWithIoT`:
 
 - Start on 1F and understand the objective within 5 seconds.
 - Enter the house without jumping or rubbing against the doorway.
-- Try pushing into the house walls near the entrance and 1F/2F route; the old-house mesh collider should remain solid.
+- Try pushing into the house walls near the entrance and 1F/2F route; the explicit interior shell colliders should stop the player without snagging the route.
 - Reach the 2F objective route and stand near the stair landing/objective without falling through the floor.
 - Walk up the stair route normally with WASD; there should be no scripted lift or sudden Y-axis snap.
 - Confirm the held lantern gives enough forward visibility without making the whole map bright.

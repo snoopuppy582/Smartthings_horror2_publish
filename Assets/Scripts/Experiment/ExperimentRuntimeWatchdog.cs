@@ -109,6 +109,7 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
         RequireHouseCollisionGate("StairHouseCollisionGate_Auto", "stair_house_collision_gate");
         RequireSolidCollider("SecondFloorAccessRamp_Auto", "stair_ramp_solid");
         RequireSolidCollider("SecondFloorAccessRamp_Landing_Auto", "stair_ramp_landing_solid");
+        RequireNoSolidStairStepColliders();
         RequireTriggerCollider("SecondFloorStairBridge_Auto", "stair_bridge_trigger");
         RequireTriggerCollider("SecondFloorStairLanding_Auto", "stair_landing_trigger");
         RequirePrimaryHouseCollider();
@@ -128,18 +129,15 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
                 continue;
 
             found = true;
-            if (!collider.gameObject.activeInHierarchy || !collider.enabled || collider.isTrigger)
+            if (collider.gameObject.activeInHierarchy && collider.enabled && !collider.isTrigger)
             {
-                if (IsHouseColliderTemporarilyBypassed())
-                    return;
-
-                Warn("primary_house_collider_disabled", $"{PrimaryHouseColliderName} is not active enabled solid collision.");
+                Warn("primary_house_collider_solid", $"{PrimaryHouseColliderName} is still solid and may block 1F/stair movement. It should be trigger/nonblocking; explicit OldHouseInterior*_Auto colliders handle walls/floors.");
             }
             return;
         }
 
         if (!found)
-            Warn("primary_house_collider_missing", $"{PrimaryHouseColliderName} is missing; old-house walls/floors may be non-solid.");
+            Warn("primary_house_collider_missing", $"{PrimaryHouseColliderName} is missing; broad mesh collider state cannot be audited.");
     }
 
     private static bool IsHouseColliderTemporarilyBypassed()
@@ -198,7 +196,25 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
         }
 
         if (collider.isTrigger)
-            Warn(code + "_trigger", $"{objectName} is a trigger; stair movement will rely on code lift instead of a walkable ramp.");
+            Warn(code + "_trigger", $"{objectName} is a trigger; the player needs a solid physical stair/ramp surface.");
+    }
+
+    private void RequireNoSolidStairStepColliders()
+    {
+        GameObject[] objects = FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < objects.Length; i++)
+        {
+            GameObject obj = objects[i];
+            if (obj == null || !obj.name.StartsWith("SecondFloorAccessStep_Auto_", System.StringComparison.Ordinal))
+                continue;
+
+            Collider collider = obj != null ? obj.GetComponent<Collider>() : null;
+            if (collider == null || !collider.enabled)
+                continue;
+
+            if (!collider.isTrigger)
+                Warn("stair_step_solid", $"{obj.name} is solid and can block 1F interior movement. Use the narrow solid SecondFloorAccessRamp_Auto collider for stair traversal.");
+        }
     }
 
     private void CheckRouteState()
@@ -236,7 +252,8 @@ public class ExperimentRuntimeWatchdog : MonoBehaviour
             Warn("killer_invisible", "KillerAI has no active enabled Renderer; the KILLER object may be invisible in Play Mode.");
 
         CheckPath(agent.transform.position, player.transform.position, "killer_to_player_start");
-        CheckPath(agent.transform.position, objective.transform.position, "killer_to_objective_area");
+        if (!killer.AvoidsStairRouteDuringChase)
+            CheckPath(agent.transform.position, objective.transform.position, "killer_to_objective_area");
     }
 
     private static bool HasVisibleRenderer(KillerAI killer)

@@ -46,6 +46,15 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         new Vector3(-25.40f, 2.94f, -15.95f),
         new Vector3(-24.55f, 2.94f, -15.35f),
     };
+    private static readonly Vector3[] SyntheticWasdInteriorRoute =
+    {
+        new Vector3(-24.65f, 0.22f, -20.35f),
+        new Vector3(-27.70f, 0.22f, -19.30f),
+        new Vector3(-27.30f, 0.22f, -15.15f),
+        new Vector3(-24.20f, 0.22f, -13.85f),
+        new Vector3(-21.95f, 0.22f, -16.45f),
+        new Vector3(-24.65f, 0.22f, -20.35f),
+    };
 
     [SerializeField] private float initialDelaySec = 0.75f;
     [SerializeField] private float maxWaitForSessionSec = 5f;
@@ -116,6 +125,13 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
 
         CheckRuntimeObjects(report);
         CheckKillerRoute(report);
+        yield return DrivePlayerSyntheticInteriorRoute(report);
+        if (report.errors.Count > 0)
+        {
+            FinishReport(report);
+            yield break;
+        }
+
         yield return DrivePlayerSyntheticWasdRoute(report);
 
         ExperimentLogger logger = FindFirstObjectByType<ExperimentLogger>();
@@ -195,6 +211,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
                 if (controller.stepOffset < 0.45f)
                     report.warnings.Add($"Player stepOffset may catch on thresholds: stepOffset={controller.stepOffset:0.00}.");
                 CheckDoorwayCapsuleClearance(report, player, controller);
+                CheckInteriorCapsuleClearance(report, player, controller);
                 CheckStairRouteCapsuleClearance(report, player, controller);
                 CheckStairRouteCharacterControllerTraversal(report, player, controller);
             }
@@ -340,6 +357,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
     {
         Collider[] colliders = FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         Collider activeSolidCollider = null;
+        Collider nonblockingCollider = null;
         int matchingCount = 0;
 
         foreach (Collider collider in colliders)
@@ -350,22 +368,30 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
             matchingCount++;
             if (collider.gameObject.activeInHierarchy && collider.enabled && !collider.isTrigger)
                 activeSolidCollider = collider;
+            else
+                nonblockingCollider = collider;
         }
 
         if (matchingCount == 0)
         {
-            report.errors.Add($"{PrimaryHouseColliderName} missing in Play Mode; primary old-house wall/floor collision is absent.");
+            report.errors.Add($"{PrimaryHouseColliderName} missing in Play Mode; broad old-house mesh collider state cannot be audited.");
             return;
         }
 
-        if (activeSolidCollider == null)
+        if (activeSolidCollider != null)
         {
-            report.errors.Add($"{PrimaryHouseColliderName} exists but is not an active enabled solid collider in Play Mode.");
+            report.errors.Add($"{PrimaryHouseColliderName} is still solid in Play Mode; it can block 1F interior movement and the stair route. It must be disabled or trigger while OldHouseInterior*_Auto colliders provide walls/floors.");
             return;
         }
 
-        Bounds bounds = activeSolidCollider.bounds;
-        report.info.Add($"Primary house collider enabled: {activeSolidCollider.GetType().Name}, bounds={bounds.size.x:0.0}x{bounds.size.y:0.0}x{bounds.size.z:0.0}.");
+        if (nonblockingCollider == null)
+        {
+            report.errors.Add($"{PrimaryHouseColliderName} exists but no nonblocking collider instance could be confirmed in Play Mode.");
+            return;
+        }
+
+        Bounds bounds = nonblockingCollider.bounds;
+        report.info.Add($"Broad house mesh collider nonblocking: {nonblockingCollider.GetType().Name}, enabled={nonblockingCollider.enabled}, trigger={nonblockingCollider.isTrigger}, bounds={bounds.size.x:0.0}x{bounds.size.y:0.0}x{bounds.size.z:0.0}.");
     }
 
     private static void CheckSecondFloorSupport(SmokeReport report)
@@ -437,8 +463,32 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
     {
         RequireSolidCollider(report, "SecondFloorAccessRamp_Auto");
         RequireSolidCollider(report, "SecondFloorAccessRamp_Landing_Auto");
+        RequireNoSolidStairStepColliders(report);
         RequireTriggerCollider(report, "SecondFloorStairBridge_Auto");
         RequireTriggerCollider(report, "SecondFloorStairLanding_Auto");
+    }
+
+    private static void RequireNoSolidStairStepColliders(SmokeReport report)
+    {
+        int found = 0;
+        GameObject[] objects = FindObjectsByType<GameObject>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < objects.Length; i++)
+        {
+            GameObject obj = objects[i];
+            if (obj == null || !obj.name.StartsWith("SecondFloorAccessStep_Auto_", StringComparison.Ordinal))
+                continue;
+
+            Collider collider = obj != null ? obj.GetComponent<Collider>() : null;
+            if (collider == null || !collider.enabled)
+                continue;
+
+            found++;
+            if (!collider.isTrigger)
+                report.errors.Add($"{obj.name} must be nonblocking. The stair route uses the narrow solid SecondFloorAccessRamp_Auto collider so old step boxes cannot block the 1F interior.");
+        }
+
+        if (found > 0)
+            report.info.Add($"Legacy stair step colliders are nonblocking triggers: {found}.");
     }
 
     private static void RequireSolidCollider(SmokeReport report, string objectName)
@@ -452,7 +502,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         }
 
         if (collider.isTrigger)
-            report.errors.Add($"{objectName} must be solid so the player naturally walks up the stair ramp instead of being lifted by code.");
+            report.errors.Add($"{objectName} must be solid so the player physically walks up the visible stair route instead of passing through it.");
     }
 
     private static void RequireTriggerCollider(SmokeReport report, string objectName)
@@ -545,16 +595,56 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
 
         string objectName = hit.gameObject.name;
         if (objectName == PrimaryHouseColliderName)
-        {
-            DoorwayHouseCollisionGate gate = FindFirstObjectByType<DoorwayHouseCollisionGate>();
-            return gate != null && gate.IsConfigured && gate.HouseColliderName == PrimaryHouseColliderName;
-        }
+            return false;
 
         return objectName.StartsWith("DoorEntrance") ||
                objectName.StartsWith("ExperimentMarker") ||
                objectName.StartsWith("SecondFloorAccessRamp") ||
                objectName.StartsWith("SecondFloorAccessStep") ||
                objectName.StartsWith("SecondFloorObjective");
+    }
+
+    private static void CheckInteriorCapsuleClearance(SmokeReport report, GameObject player, CharacterController controller)
+    {
+        float radius = controller.radius;
+        float height = Mathf.Max(controller.height, radius * 2f + 0.1f);
+
+        for (int i = 0; i < SyntheticWasdInteriorRoute.Length; i++)
+        {
+            Vector3 sample = SyntheticWasdInteriorRoute[i];
+            Vector3 bottom = sample + Vector3.up * (radius + 0.04f);
+            Vector3 top = sample + Vector3.up * (height - radius);
+            Collider[] hits = Physics.OverlapCapsule(bottom, top, radius, ~0, QueryTriggerInteraction.Ignore);
+
+            for (int h = 0; h < hits.Length; h++)
+            {
+                Collider hit = hits[h];
+                if (hit == null || IsAllowedInteriorProbeHit(hit, player, bottom, radius))
+                    continue;
+
+                report.errors.Add($"1F interior capsule probe blocked at sample {i} near {sample.x:0.0},{sample.y:0.0},{sample.z:0.0} by {DescribeCollider(hit)}.");
+                return;
+            }
+        }
+
+        report.info.Add("1F interior capsule probe clear for Player dimensions.");
+    }
+
+    private static bool IsAllowedInteriorProbeHit(Collider hit, GameObject player, Vector3 bottom, float radius)
+    {
+        if (hit.isTrigger)
+            return true;
+        if (hit.transform == player.transform || hit.transform.IsChildOf(player.transform))
+            return true;
+        if (hit.bounds.max.y < bottom.y - radius * 0.35f)
+            return true;
+
+        string objectName = hit.gameObject.name;
+        return objectName.StartsWith("DoorEntrance") ||
+               objectName.StartsWith("DoorwayHouseCollisionGate") ||
+               objectName.StartsWith("StairHouseCollisionGate") ||
+               objectName.StartsWith("StairTraversalAssistZone") ||
+               objectName.StartsWith("ExperimentMarker");
     }
 
     private static void CheckKillerRoute(SmokeReport report)
@@ -618,7 +708,13 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         if (player != null)
             CheckPath(report, agent.transform.position, player.transform.position, "killer -> player start", 6f);
         if (objective != null)
-            CheckPath(report, agent.transform.position, objective.transform.position, "killer -> objective area", 8f);
+            CheckPath(
+                report,
+                agent.transform.position,
+                objective.transform.position,
+                "killer -> objective area",
+                8f,
+                warnOnIncomplete: !killer.AvoidsStairRouteDuringChase);
 
         KillerPlayerCollisionBypass collisionBypass = killer.GetComponent<KillerPlayerCollisionBypass>();
         if (collisionBypass == null)
@@ -681,7 +777,7 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
 
         string objectName = hit.gameObject.name;
         if (objectName == PrimaryHouseColliderName)
-            return IsConfiguredHouseCollisionGate("StairHouseCollisionGate_Auto");
+            return false;
 
         if (objectName.StartsWith("SecondFloorWalkableFloor") ||
             objectName.StartsWith("SecondFloorStairBridge") ||
@@ -726,7 +822,6 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         {
             probe.transform.position = StairTraversalRoute[0];
             Physics.SyncTransforms();
-            SuppressPrimaryHouseColliderForTraversalProbe();
             IgnoreTraversalProbeNonRouteColliders(controller, player);
 
             StairTraversalAssistZone assistZone = FindFirstObjectByType<StairTraversalAssistZone>();
@@ -749,7 +844,6 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         }
         finally
         {
-            RestorePrimaryHouseColliderAfterTraversalProbe();
             UnityEngine.Object.Destroy(probe);
         }
     }
@@ -789,12 +883,30 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         Physics.SyncTransforms();
     }
 
+    private static IEnumerator DrivePlayerSyntheticInteriorRoute(SmokeReport report)
+    {
+        yield return DrivePlayerSyntheticRoute(
+            report,
+            SyntheticWasdInteriorRoute,
+            "1F interior synthetic WASD route",
+            requireSecondFloor: false);
+    }
+
     private static IEnumerator DrivePlayerSyntheticWasdRoute(SmokeReport report)
+    {
+        yield return DrivePlayerSyntheticRoute(
+            report,
+            SyntheticWasdStairRoute,
+            "stair synthetic WASD route",
+            requireSecondFloor: true);
+    }
+
+    private static IEnumerator DrivePlayerSyntheticRoute(SmokeReport report, Vector3[] route, string label, bool requireSecondFloor)
     {
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player == null)
         {
-            report.errors.Add("Synthetic WASD route cannot run because Player is missing.");
+            report.errors.Add($"{label} cannot run because Player is missing.");
             yield break;
         }
 
@@ -802,7 +914,13 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         CharacterController controller = player.GetComponent<CharacterController>();
         if (firstPerson == null || controller == null)
         {
-            report.errors.Add("Synthetic WASD route requires FirstPersonController and CharacterController on Player.");
+            report.errors.Add($"{label} requires FirstPersonController and CharacterController on Player.");
+            yield break;
+        }
+
+        if (route == null || route.Length < 2)
+        {
+            report.errors.Add($"{label} has too few waypoints.");
             yield break;
         }
 
@@ -815,28 +933,31 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         {
             Time.timeScale = 1f;
             controller.enabled = false;
-            player.transform.SetPositionAndRotation(SyntheticWasdStairRoute[0], Quaternion.identity);
+            player.transform.SetPositionAndRotation(route[0], Quaternion.identity);
             controller.enabled = originalControllerEnabled;
             Physics.SyncTransforms();
 
             firstPerson.BeginSyntheticInput();
             yield return null;
 
-            for (int i = 1; i < SyntheticWasdStairRoute.Length; i++)
+            for (int i = 1; i < route.Length; i++)
             {
-                yield return DriveSyntheticWasdSegment(report, player, firstPerson, SyntheticWasdStairRoute[i], i);
+                yield return DriveSyntheticWasdSegment(report, player, firstPerson, route[i], i);
                 if (report.errors.Count > 0)
                     yield break;
             }
 
             Vector3 finalPosition = player.transform.position;
-            if (finalPosition.y < 2.55f)
+            if (requireSecondFloor && finalPosition.y < 2.55f)
             {
-                report.errors.Add($"Synthetic WASD player route ended too low: y={finalPosition.y:0.00}.");
+                report.errors.Add($"{label} ended too low: y={finalPosition.y:0.00}.");
                 yield break;
             }
 
-            report.info.Add($"Synthetic WASD player route reached 2F using FirstPersonController. end={finalPosition.x:0.0},{finalPosition.y:0.0},{finalPosition.z:0.0}.");
+            if (requireSecondFloor)
+                report.info.Add($"Synthetic WASD player route reached 2F using FirstPersonController. end={finalPosition.x:0.0},{finalPosition.y:0.0},{finalPosition.z:0.0}.");
+            else
+                report.info.Add($"{label} completed using FirstPersonController. end={finalPosition.x:0.0},{finalPosition.y:0.0},{finalPosition.z:0.0}.");
         }
         finally
         {
@@ -1040,22 +1161,28 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
         for (int i = 0; i < allColliders.Length; i++)
         {
             Collider collider = allColliders[i];
-            if (collider != null && collider.gameObject.name == PrimaryHouseColliderName && IsConfiguredHouseCollisionGate("StairHouseCollisionGate_Auto"))
+            if (collider != null && collider.gameObject.name == PrimaryHouseColliderName && collider.isTrigger)
                 Physics.IgnoreCollision(probe, collider, true);
         }
     }
 
-    private static void CheckPath(SmokeReport report, Vector3 from, Vector3 to, string label, float targetSampleDistance)
+    private static void CheckPath(SmokeReport report, Vector3 from, Vector3 to, string label, float targetSampleDistance, bool warnOnIncomplete = true)
     {
         if (!NavMesh.SamplePosition(from, out NavMeshHit fromHit, 4f, NavMesh.AllAreas))
         {
-            report.warnings.Add($"NavMesh path source missing: {label}.");
+            if (warnOnIncomplete)
+                report.warnings.Add($"NavMesh path source missing: {label}.");
+            else
+                report.info.Add($"NavMesh path intentionally optional: {label}. KILLER stair safety hold keeps it off the player's stair/2F route.");
             return;
         }
 
         if (!NavMesh.SamplePosition(to, out NavMeshHit toHit, targetSampleDistance, NavMesh.AllAreas))
         {
-            report.warnings.Add($"NavMesh path target missing: {label}.");
+            if (warnOnIncomplete)
+                report.warnings.Add($"NavMesh path target missing: {label}.");
+            else
+                report.info.Add($"NavMesh path intentionally optional: {label}. KILLER stair safety hold keeps it off the player's stair/2F route.");
             return;
         }
 
@@ -1069,7 +1196,10 @@ public class ExperimentPlayModeSmokeRunner : MonoBehaviour
                 return;
             }
 
-            report.warnings.Add($"NavMesh path incomplete: {label}.");
+            if (warnOnIncomplete)
+                report.warnings.Add($"NavMesh path incomplete: {label}.");
+            else
+                report.info.Add($"NavMesh path intentionally optional: {label}. KILLER stair safety hold keeps it off the player's stair/2F route.");
             return;
         }
 
