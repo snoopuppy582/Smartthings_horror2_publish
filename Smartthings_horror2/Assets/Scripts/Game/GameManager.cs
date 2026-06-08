@@ -26,6 +26,10 @@ public class GameManager : MonoBehaviour
     [SerializeField] private GameObject gameOverPanel;
     [SerializeField] private GameObject pausePanel;
 
+    [Header("로컬 컨트롤러")]
+    [SerializeField] private HouseLightController houseLights;
+    [SerializeField] private FanPlugController fanPlug;
+
     [Header("실험 조건")]
     [Tooltip("true = SmartThings 연동 실험 조건 / false = 제어 조건(IoT 없음)")]
     [SerializeField] public bool iotEnabled = true;
@@ -57,12 +61,34 @@ public class GameManager : MonoBehaviour
 
         switch (newState)
         {
-            case GameState.GhostHint:  TriggerIoT("ghost_hint");  break;
-            case GameState.GhostNear:  TriggerIoT("ghost_near");  break;
-            case GameState.Chase:      TriggerIoT("chase");        break;
-            case GameState.JumpScare:  TriggerIoT("jump_scare");   break;
-            case GameState.Exploring:  TriggerIoT("recovery");     break;
-            case GameState.GameOver:   OnGameOver();               break;
+            case GameState.GhostHint:
+                TriggerIoT("Enemy_hint");
+                houseLights?.OnEnemyHint();
+                fanPlug?.OnEnemyHint();
+                break;
+            case GameState.GhostNear:
+                TriggerIoT("Enemy_near");
+                houseLights?.OnEnemyNear();
+                fanPlug?.OnEnemyNear();
+                break;
+            case GameState.Chase:
+                TriggerIoT("chase");
+                houseLights?.OnChase();
+                fanPlug?.OnChase();
+                break;
+            case GameState.JumpScare:
+                TriggerIoT("jump_scare");
+                houseLights?.OnJumpScare();
+                fanPlug?.OnJumpScare();
+                break;
+            case GameState.Exploring:
+                TriggerIoT("recovery");
+                houseLights?.OnRecovery();
+                fanPlug?.OnRecovery();
+                break;
+            case GameState.GameOver:
+                OnGameOver();
+                break;
         }
     }
 

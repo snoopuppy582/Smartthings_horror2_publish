@@ -2,55 +2,51 @@
 // 이벤트별 허용 동작 및 안전 제한 설정
 
 const EVENT_CONFIG = {
-  // 🆕 문 진입 — 집안 암전 (게임 입장 연출)
-  door_entrance: {
-    label: "귀신의 집 입장",
-    cooldown: 8000,
-    light: { action: "blackout", duration: 3000, restoreLevel: 25 }, // 3초 암전 후 25%로 복귀
-    ac: { action: "none" },
-    appliance: { action: "none" },
-  },
-  ghost_hint: {
-    label: "귀신 기척",
+  Enemy_hint: {
+    label: "적 기척",
     cooldown: 5000,
-    light: { action: "dim", level: -15 },
-    ac: { action: "none" },
-    appliance: { action: "notify_short" },
+    light: { action: "dim", level: 50 },
+    plug:  { action: "off" },
   },
-  ghost_near: {
-    label: "귀신 접근",
+  Enemy_near: {
+    label: "적 접근",
     cooldown: 5000,
-    light: { action: "flicker", times: 1 },
-    ac: { action: "fan_up", step: 1 },
-    appliance: { action: "status_display" },
+    light: { action: "dim", level: 25 },
+    plug:  { action: "on", duration: 4000 },
   },
   blackout: {
     label: "암전",
     cooldown: 8000,
-    light: { action: "blackout", duration: 3000 },
-    ac: { action: "none" },
-    appliance: { action: "none" },
+    light: { action: "blackout", dimLevel: 20, duration: 1000, restoreLevel: 100 },
+    plug:  { action: "off" },
   },
   chase: {
     label: "추격",
     cooldown: 5000,
-    light: { action: "low", level: 20 },
-    ac: { action: "cool_maintain" },
-    appliance: { action: "none" },
+    light: { action: "dim", level: 25 },
+    plug:  { action: "on", duration: 4000 },
   },
   jump_scare: {
     label: "점프스케어",
     cooldown: 10000,
-    light: { action: "flash", duration: 500 },
-    ac: { action: "none" },
-    appliance: { action: "status_short" },
+    light: { action: "flash", duration: 200 },
+    plug:  { action: "cycle", interval: 300 },
   },
   recovery: {
     label: "복구",
     cooldown: 2000,
     light: { action: "restore" },
-    ac: { action: "restore" },
-    appliance: { action: "restore" },
+    plug:  { action: "off" },
+  },
+  plug_on: {
+    label: "플러그 ON",
+    cooldown: 100,
+    plug: { action: "on" },
+  },
+  plug_off: {
+    label: "플러그 OFF",
+    cooldown: 100,
+    plug: { action: "off" },
   },
 };
 

@@ -13,7 +13,7 @@ public class STInteracter : MonoBehaviour
 
     // 서버 HANDLERS와 동일하게 유지 (안전 규칙 1, 클라이언트 1차 방어)
     private static readonly HashSet<string> Allowed = new HashSet<string>
-    { "door_entrance", "ghost_hint", "ghost_near", "blackout", "chase", "jump_scare", "recovery" };
+    { "Enemy_hint", "Enemy_near", "blackout", "chase", "jump_scare", "recovery", "plug_on", "plug_off" };
 
     private readonly Dictionary<string, float> lastSent = new Dictionary<string, float>();
 

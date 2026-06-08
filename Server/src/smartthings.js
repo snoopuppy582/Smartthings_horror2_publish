@@ -72,6 +72,13 @@ async function flashLight(deviceId, durationMs = 500) {
   await setLightLevel(deviceId, 100); // 복구
 }
 
+// ── 스마트 플러그 제어 ────────────────────────────────────
+
+// 플러그 켜기/끄기 (switch capability 사용)
+async function setPlugSwitch(deviceId, on) {
+  return sendCommand(deviceId, "switch", on ? "on" : "off");
+}
+
 // ── 에어컨 제어 함수들 ──────────────────────────────────
 
 // 에어컨 모드 설정 (cool / fanOnly)
@@ -103,6 +110,7 @@ module.exports = {
   flickerLight,
   blackoutWithRestore,
   flashLight,
+  setPlugSwitch,
   setAcMode,
   setFanSpeed,
   setAcTemperature,
