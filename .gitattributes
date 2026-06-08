@@ -5,6 +5,7 @@
 *.md text eol=lf
 *.asmdef text eol=lf
 *.unity text eol=lf
+Assets/Scenes/MainScene.unity -text -diff -merge !eol
 *.prefab text eol=lf
 *.mat text eol=lf
 *.asset text eol=lf
