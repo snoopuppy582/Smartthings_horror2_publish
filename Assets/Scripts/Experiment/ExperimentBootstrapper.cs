@@ -20,7 +20,7 @@ public static class ExperimentBootstrapper
     private static readonly Vector3 StairAssistBaseTop = new Vector3(-29.15f, 0.22f, -18.75f);
     private static readonly Vector3 StairAssistLandingTop = new Vector3(-27.35f, 2.94f, -17.25f);
     private static readonly Vector3 StairAssistExitTop = new Vector3(-24.55f, 2.94f, -15.35f);
-    private static readonly Vector3 KillerSpawnPosition = new Vector3(-31.2f, 0.15f, -21.2f);
+    private static readonly Vector3 KillerSpawnPosition = new Vector3(-16.8f, 0.15f, -11.8f);
     private static readonly Vector3 KillerLookTarget = new Vector3(-24.6f, 0.15f, -17.2f);
     private static readonly Color ObjectivePurple = new Color(0.72f, 0.18f, 1f, 1f);
 
@@ -68,6 +68,7 @@ public static class ExperimentBootstrapper
         EnsureStairTraversalAssistZone();
         DisableLegacyStairBlockers();
         NeutralizePrimaryHouseMeshCollider();
+        RebuildNavMeshAtRuntime();
         EnsureProgressMarkers();
         EnsureObjectiveItem();
         EnsureProceduralAmbience();
@@ -139,25 +140,25 @@ public static class ExperimentBootstrapper
     {
         if (SceneManager.GetActiveScene().name != "MainScene") return;
 
-        CreateOrTuneInvisibleBox(
+        CreateOrTuneWallBox(
             "SecondFloorBoundaryWall_Auto_North",
             new Vector3(-23.75f, 3.95f, -12.25f),
             Quaternion.identity,
             new Vector3(5.2f, 2.0f, 0.22f));
 
-        CreateOrTuneInvisibleBox(
+        CreateOrTuneWallBox(
             "SecondFloorBoundaryWall_Auto_South",
             new Vector3(-23.75f, 3.95f, -17.45f),
             Quaternion.identity,
             new Vector3(5.2f, 2.0f, 0.22f));
 
-        CreateOrTuneInvisibleBox(
+        CreateOrTuneWallBox(
             "SecondFloorBoundaryWall_Auto_East",
             new Vector3(-21.15f, 3.95f, -14.85f),
             Quaternion.identity,
             new Vector3(0.22f, 2.0f, 5.2f));
 
-        CreateOrTuneInvisibleBox(
+        CreateOrTuneWallBox(
             "SecondFloorBoundaryWall_Auto_West",
             new Vector3(-26.35f, 3.95f, -12.85f),
             Quaternion.identity,
@@ -168,41 +169,96 @@ public static class ExperimentBootstrapper
     {
         if (SceneManager.GetActiveScene().name != "MainScene") return;
 
+        // 내·외부 전체 커버 바닥 — 읽기 불가 지형 MeshCollider 대신 NavMesh 베이크용
+        // 집 내부 + Killer 외부 스폰 영역 + 문 접근 경로를 모두 포함
+        CreateOrTuneInvisibleBox(
+            "GroundPlaneNavMesh_Auto",
+            new Vector3(-23f, 0f, -16f),
+            Quaternion.identity,
+            new Vector3(30f, 0.1f, 26f));
+
+        // 집 내부 바닥 — NavMesh 베이크용 걷기 가능 영역
         CreateOrTuneInvisibleBox(
             "OldHouseInteriorFirstFloor_Auto",
             new Vector3(-25.2f, 0.05f, -17.15f),
             Quaternion.identity,
             new Vector3(9.4f, 0.1f, 8.9f));
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorNorthWall_Auto",
-            new Vector3(-25.2f, 1.45f, -12.55f),
-            Quaternion.identity,
-            new Vector3(9.4f, 2.8f, 0.22f));
+        // 벽은 씬에서 수동 배치된 실제 콜라이더 사용
+    }
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorWestWall_Auto",
-            new Vector3(-30.0f, 1.45f, -16.85f),
-            Quaternion.identity,
-            new Vector3(0.22f, 2.8f, 8.15f));
+    // 벽용 박스: 투명 파란색 Cube(시각 확인) + BoxCollider(물리 차단) + NavMeshObstacle(경로 카빙)
+    // 런타임에서는 에디터에서 수동 배치된 위치를 덮어쓰지 않음
+    private static void CreateOrTuneWallBox(string objectName, Vector3 defaultPosition, Quaternion defaultRotation, Vector3 scale)
+    {
+        bool isNew = false;
+        GameObject box = GameObject.Find(objectName);
+        if (box == null)
+        {
+            box = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            box.name = objectName;
+            isNew = true;
+        }
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorEastWall_Auto",
-            new Vector3(-20.45f, 1.45f, -16.85f),
-            Quaternion.identity,
-            new Vector3(0.22f, 2.8f, 8.15f));
+        // 새로 생성할 때만 기본 위치 적용 — 이미 있으면 수동 배치 위치 보존
+        if (isNew)
+            box.transform.SetPositionAndRotation(defaultPosition, defaultRotation);
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorSouthWall_Left_Auto",
-            new Vector3(-28.45f, 1.45f, -21.55f),
-            Quaternion.identity,
-            new Vector3(3.0f, 2.8f, 0.22f));
+        box.transform.localScale = scale;
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorSouthWall_Right_Auto",
-            new Vector3(-21.9f, 1.45f, -21.55f),
-            Quaternion.identity,
-            new Vector3(2.8f, 2.8f, 0.22f));
+        if (box.GetComponent<BoxCollider>() == null)
+            box.AddComponent<BoxCollider>();
+
+        MeshRenderer renderer = box.GetComponent<MeshRenderer>();
+        if (renderer == null)
+            renderer = box.AddComponent<MeshRenderer>();
+        renderer.sharedMaterial = GetOrCreateWallDebugMaterial();
+
+        UnityEngine.AI.NavMeshObstacle obstacle = box.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+        if (obstacle == null)
+            obstacle = box.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+
+        obstacle.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+        obstacle.size = Vector3.one;
+        obstacle.center = Vector3.zero;
+        obstacle.carving = true;
+        obstacle.carvingMoveThreshold = 0f;
+        obstacle.carvingTimeToStationary = 0f;
+    }
+
+    private static Material _wallDebugMaterial;
+
+    private static Material GetOrCreateWallDebugMaterial()
+    {
+        if (_wallDebugMaterial != null) return _wallDebugMaterial;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        bool isUrp = shader != null;
+        if (!isUrp) shader = Shader.Find("Standard");
+
+        _wallDebugMaterial = new Material(shader) { name = "WallDebug_Transparent" };
+
+        if (isUrp)
+        {
+            _wallDebugMaterial.SetFloat("_Surface", 1f);
+            _wallDebugMaterial.SetFloat("_Blend", 0f);
+            _wallDebugMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        }
+        else
+        {
+            _wallDebugMaterial.SetFloat("_Mode", 3f);
+            _wallDebugMaterial.DisableKeyword("_ALPHATEST_ON");
+            _wallDebugMaterial.EnableKeyword("_ALPHABLEND_ON");
+            _wallDebugMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        }
+
+        _wallDebugMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        _wallDebugMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        _wallDebugMaterial.SetInt("_ZWrite", 0);
+        _wallDebugMaterial.renderQueue = 3000;
+        _wallDebugMaterial.color = new Color(0.25f, 0.55f, 1f, 0.22f); // 반투명 파란색
+
+        return _wallDebugMaterial;
     }
 
     private static void EnsureDoorwayAccessAssist()
@@ -434,6 +490,50 @@ public static class ExperimentBootstrapper
                bounds.size.z >= 1.5f;
     }
 
+    private static void RebuildNavMeshAtRuntime()
+    {
+        Unity.AI.Navigation.NavMeshSurface surface =
+            Object.FindFirstObjectByType<Unity.AI.Navigation.NavMeshSurface>();
+
+        if (surface == null)
+        {
+            GameObject surfaceObj = new GameObject("NavMeshSurface_Auto");
+            surface = surfaceObj.AddComponent<Unity.AI.Navigation.NavMeshSurface>();
+            Debug.Log("[ExperimentBootstrapper] NavMeshSurface_Auto created.");
+        }
+
+        // 읽기 불가 MeshCollider는 BuildNavMesh() 중 에러를 일으키므로 일시 비활성화
+        MeshCollider[] allMeshColliders = Object.FindObjectsByType<MeshCollider>(
+            FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+
+        var temporarilyDisabled = new System.Collections.Generic.List<MeshCollider>();
+        foreach (MeshCollider mc in allMeshColliders)
+        {
+            if (mc.enabled && mc.sharedMesh != null && !mc.sharedMesh.isReadable)
+            {
+                mc.enabled = false;
+                temporarilyDisabled.Add(mc);
+            }
+        }
+
+        // BoxCollider 기반으로 NavMesh 재빌드 (벽/문 갭 반영)
+        surface.collectObjects = Unity.AI.Navigation.CollectObjects.All;
+        surface.useGeometry = UnityEngine.AI.NavMeshCollectGeometry.PhysicsColliders;
+        surface.layerMask = ~0;
+        surface.ignoreNavMeshAgent = true;
+        surface.ignoreNavMeshObstacle = true;
+        surface.BuildNavMesh();
+
+        // 비활성화했던 MeshCollider 복원 (물리 충돌은 계속 유지)
+        foreach (MeshCollider mc in temporarilyDisabled)
+        {
+            if (mc != null)
+                mc.enabled = true;
+        }
+
+        Debug.Log($"[ExperimentBootstrapper] NavMesh rebuilt — {temporarilyDisabled.Count} unreadable mesh collider(s) skipped, walls/door gap applied.");
+    }
+
     private static void NeutralizePrimaryHouseMeshCollider()
     {
         Collider[] colliders = Object.FindObjectsByType<Collider>(FindObjectsInactive.Include, FindObjectsSortMode.None);
@@ -478,7 +578,7 @@ public static class ExperimentBootstrapper
 
         CreateProgressMarker(
             "ExperimentMarker_ObjectiveArea_Auto",
-            new Vector3(-23.9f, 3.55f, -15.2f),
+            new Vector3(-24f, 1.4f, -12f),
             new Vector3(3.2f, 2.0f, 3.2f),
             ExperimentProgressMarker.MarkerType.ObjectiveAreaReached,
             null);
@@ -565,6 +665,14 @@ public static class ExperimentBootstrapper
         }
 
         killer.ConfigureForExperimentDefaults();
+
+        // 지형 충돌용 캡슐 콜라이더 — KillerPlayerCollisionBypass가 플레이어와의 충돌은 자동 무시
+        CapsuleCollider cap = killer.GetComponent<CapsuleCollider>();
+        if (cap == null)
+            cap = killer.gameObject.AddComponent<CapsuleCollider>();
+        cap.height = 1.8f;
+        cap.radius = 0.35f;
+        cap.center = new Vector3(0f, 0.9f, 0f);
 
         KillerPlayerCollisionBypass collisionBypass = killer.GetComponent<KillerPlayerCollisionBypass>();
         if (collisionBypass == null)
@@ -702,7 +810,7 @@ public static class ExperimentBootstrapper
 
         GameObject objective = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         objective.name = "SecondFloorObjective_Auto";
-        objective.transform.position = new Vector3(-23.9f, 3.55f, -15.2f);
+        objective.transform.position = new Vector3(-24f, 1.4f, -12f);
         objective.transform.localScale = Vector3.one * 0.55f;
 
         Renderer renderer = objective.GetComponent<Renderer>();
@@ -780,7 +888,7 @@ public static class ExperimentBootstrapper
 
     private static void TuneObjective(GameObject objective)
     {
-        objective.transform.position = new Vector3(-23.9f, 3.55f, -15.2f);
+        objective.transform.position = new Vector3(-24f, 1.4f, -12f);
         if (objective.transform.localScale.x < 0.5f)
             objective.transform.localScale = Vector3.one * 0.55f;
 

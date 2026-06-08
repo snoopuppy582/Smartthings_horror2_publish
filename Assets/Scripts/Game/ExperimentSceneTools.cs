@@ -33,7 +33,7 @@ public static class ExperimentSceneTools
     private static readonly Vector3 StairAssistBaseTop = new Vector3(-29.15f, 0.22f, -18.75f);
     private static readonly Vector3 StairAssistLandingTop = new Vector3(-27.35f, 2.94f, -17.25f);
     private static readonly Vector3 StairAssistExitTop = new Vector3(-24.55f, 2.94f, -15.35f);
-    private static readonly Vector3 KillerSpawnPosition = new Vector3(-31.2f, 0.15f, -21.2f);
+    private static readonly Vector3 KillerSpawnPosition = new Vector3(-16.8f, 0.15f, -11.8f);
     private static readonly Vector3 KillerLookTarget = new Vector3(-24.6f, 0.15f, -17.2f);
     private static readonly Color ObjectivePurple = new Color(0.72f, 0.18f, 1f, 1f);
 
@@ -533,25 +533,25 @@ public static class ExperimentSceneTools
 
     private static void EnsureSecondFloorBoundaryColliders()
     {
-        CreateOrTuneInvisibleBox(
+        CreateOrTuneWallBox(
             "SecondFloorBoundaryWall_Auto_North",
             new Vector3(-23.75f, 3.95f, -12.25f),
             Quaternion.identity,
             new Vector3(5.2f, 2.0f, 0.22f));
 
-        CreateOrTuneInvisibleBox(
+        CreateOrTuneWallBox(
             "SecondFloorBoundaryWall_Auto_South",
             new Vector3(-23.75f, 3.95f, -17.45f),
             Quaternion.identity,
             new Vector3(5.2f, 2.0f, 0.22f));
 
-        CreateOrTuneInvisibleBox(
+        CreateOrTuneWallBox(
             "SecondFloorBoundaryWall_Auto_East",
             new Vector3(-21.15f, 3.95f, -14.85f),
             Quaternion.identity,
             new Vector3(0.22f, 2.0f, 5.2f));
 
-        CreateOrTuneInvisibleBox(
+        CreateOrTuneWallBox(
             "SecondFloorBoundaryWall_Auto_West",
             new Vector3(-26.35f, 3.95f, -12.85f),
             Quaternion.identity,
@@ -560,41 +560,106 @@ public static class ExperimentSceneTools
 
     private static void EnsureOldHouseInteriorCollisionShell()
     {
+        // 내·외부 전체 커버 바닥 — 읽기 불가 지형 MeshCollider 대신 NavMesh 베이크용
+        CreateOrTuneInvisibleBox(
+            "GroundPlaneNavMesh_Auto",
+            new Vector3(-23f, 0f, -16f),
+            Quaternion.identity,
+            new Vector3(30f, 0.1f, 26f));
+
+        // 집 내부 바닥 — NavMesh 베이크용 걷기 가능 영역
         CreateOrTuneInvisibleBox(
             "OldHouseInteriorFirstFloor_Auto",
             new Vector3(-25.2f, 0.05f, -17.15f),
             Quaternion.identity,
             new Vector3(9.4f, 0.1f, 8.9f));
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorNorthWall_Auto",
-            new Vector3(-25.2f, 1.45f, -12.55f),
-            Quaternion.identity,
-            new Vector3(9.4f, 2.8f, 0.22f));
+        // 벽은 씬에서 수동 배치된 실제 콜라이더 사용
+    }
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorWestWall_Auto",
-            new Vector3(-30.0f, 1.45f, -16.85f),
-            Quaternion.identity,
-            new Vector3(0.22f, 2.8f, 8.15f));
+    private const string WallDebugMaterialPath = "Assets/Materials/WallDebug_Transparent.mat";
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorEastWall_Auto",
-            new Vector3(-20.45f, 1.45f, -16.85f),
-            Quaternion.identity,
-            new Vector3(0.22f, 2.8f, 8.15f));
+    // 벽용 박스: 투명 파란색 Cube(시각 확인) + BoxCollider(물리 차단) + NavMeshObstacle(경로 카빙)
+    private static void CreateOrTuneWallBox(string objectName, Vector3 position, Quaternion rotation, Vector3 scale)
+    {
+        GameObject box = GameObject.Find(objectName);
+        if (box == null)
+        {
+            box = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            box.name = objectName;
+            Undo.RegisterCreatedObjectUndo(box, $"Create {objectName}");
+        }
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorSouthWall_Left_Auto",
-            new Vector3(-28.45f, 1.45f, -21.55f),
-            Quaternion.identity,
-            new Vector3(3.0f, 2.8f, 0.22f));
+        Undo.RecordObject(box.transform, $"Tune {objectName}");
+        box.transform.SetPositionAndRotation(position, rotation);
+        box.transform.localScale = scale;
 
-        CreateOrTuneInvisibleBox(
-            "OldHouseInteriorSouthWall_Right_Auto",
-            new Vector3(-21.9f, 1.45f, -21.55f),
-            Quaternion.identity,
-            new Vector3(2.8f, 2.8f, 0.22f));
+        if (box.GetComponent<BoxCollider>() == null)
+            Undo.AddComponent<BoxCollider>(box);
+
+        MeshRenderer renderer = box.GetComponent<MeshRenderer>();
+        if (renderer == null)
+            renderer = Undo.AddComponent<MeshRenderer>(box);
+
+        Material wallMat = GetOrCreateWallDebugMaterialAsset();
+        if (renderer.sharedMaterial != wallMat)
+        {
+            Undo.RecordObject(renderer, $"Assign wall material {objectName}");
+            renderer.sharedMaterial = wallMat;
+            EditorUtility.SetDirty(renderer);
+        }
+
+        UnityEngine.AI.NavMeshObstacle obstacle = box.GetComponent<UnityEngine.AI.NavMeshObstacle>();
+        if (obstacle == null)
+            obstacle = Undo.AddComponent<UnityEngine.AI.NavMeshObstacle>(box);
+
+        Undo.RecordObject(obstacle, $"Configure NavMeshObstacle {objectName}");
+        obstacle.shape = UnityEngine.AI.NavMeshObstacleShape.Box;
+        obstacle.size = Vector3.one;
+        obstacle.center = Vector3.zero;
+        obstacle.carving = true;
+        obstacle.carvingMoveThreshold = 0f;
+        obstacle.carvingTimeToStationary = 0f;
+        EditorUtility.SetDirty(obstacle);
+        EditorUtility.SetDirty(box);
+    }
+
+    private static Material GetOrCreateWallDebugMaterialAsset()
+    {
+        Material mat = AssetDatabase.LoadAssetAtPath<Material>(WallDebugMaterialPath);
+        if (mat != null) return mat;
+
+        System.IO.Directory.CreateDirectory("Assets/Materials");
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        bool isUrp = shader != null;
+        if (!isUrp) shader = Shader.Find("Standard");
+
+        mat = new Material(shader) { name = "WallDebug_Transparent" };
+
+        if (isUrp)
+        {
+            mat.SetFloat("_Surface", 1f);
+            mat.SetFloat("_Blend", 0f);
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        }
+        else
+        {
+            mat.SetFloat("_Mode", 3f);
+            mat.DisableKeyword("_ALPHATEST_ON");
+            mat.EnableKeyword("_ALPHABLEND_ON");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        }
+
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetInt("_ZWrite", 0);
+        mat.renderQueue = 3000;
+        mat.color = new Color(0.25f, 0.55f, 1f, 0.22f); // 반투명 파란색
+
+        AssetDatabase.CreateAsset(mat, WallDebugMaterialPath);
+        AssetDatabase.SaveAssets();
+        return mat;
     }
 
     private static void EnsureDoorwayAccessAssist()
@@ -978,7 +1043,7 @@ public static class ExperimentSceneTools
 
         CreateProgressMarker(
             "ExperimentMarker_ObjectiveArea_Auto",
-            new Vector3(-23.9f, 3.55f, -15.2f),
+            new Vector3(-19.2f, 1.4f, -17.6f),
             new Vector3(3.2f, 2.0f, 3.2f),
             ExperimentProgressMarker.MarkerType.ObjectiveAreaReached,
             null);
@@ -1028,7 +1093,7 @@ public static class ExperimentSceneTools
         GameObject objective = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         objective.name = "SecondFloorObjective";
         Undo.RegisterCreatedObjectUndo(objective, "Create SecondFloorObjective");
-        objective.transform.position = new Vector3(-23.9f, 3.55f, -15.2f);
+        objective.transform.position = new Vector3(-19.2f, 1.4f, -17.6f);
         objective.transform.localScale = Vector3.one * 0.55f;
 
         Renderer renderer = objective.GetComponent<Renderer>();
@@ -1052,7 +1117,7 @@ public static class ExperimentSceneTools
     private static void TuneObjective(GameObject objective)
     {
         Undo.RecordObject(objective.transform, "Tune Objective Transform");
-        objective.transform.position = new Vector3(-23.9f, 3.55f, -15.2f);
+        objective.transform.position = new Vector3(-19.2f, 1.4f, -17.6f);
         if (objective.transform.localScale.x < 0.5f)
             objective.transform.localScale = Vector3.one * 0.55f;
 
