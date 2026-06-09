@@ -22,7 +22,14 @@ const ALLOWED_DEVICES = ['smart_light', 'fan_plug'];
 const ALLOWED_ACTIONS = ['setLevel', 'setSwitch', 'flash'];
 
 // 안전 제한값 (ms)
-const COOLDOWN_MS = 15000;
+const COOLDOWN_MS = 15000; // 기본값
+// 이벤트별 cooldown 재정의 — 자주 발생하는 이벤트는 더 길게
+const COOLDOWN_OVERRIDES = {
+  player_hit: 20000,  // 피격은 20초 (API 호출 많음)
+  killer_near: 12000, // 추격자 접근은 12초
+  ghost_hint: 10000,
+  blackout: 20000,    // 암전은 복구 포함 API 부하 큼
+};
 const BLACKOUT_MAX_MS = 800;
 const FAN_ON_MAX_MS = 5000;
 const LIGHT_EFFECT_MAX_MS = 5000;
@@ -52,6 +59,7 @@ module.exports = {
   ALLOWED_DEVICES,
   ALLOWED_ACTIONS,
   COOLDOWN_MS,
+  COOLDOWN_OVERRIDES,
   BLACKOUT_MAX_MS,
   FAN_ON_MAX_MS,
   LIGHT_EFFECT_MAX_MS,

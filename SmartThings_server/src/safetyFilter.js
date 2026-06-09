@@ -3,6 +3,7 @@ const {
   ALLOWED_DEVICES,
   ALLOWED_ACTIONS,
   COOLDOWN_MS,
+  COOLDOWN_OVERRIDES,
   BLACKOUT_MAX_MS,
   FAN_ON_MAX_MS,
   LIGHT_EFFECT_MAX_MS,
@@ -26,12 +27,13 @@ function filterPlan(event_id, plan) {
     return { allowed: false, reason: `허용되지 않은 event_id: ${event_id}` };
   }
 
-  // 2. cooldown: 동일 event_id 15초 내 재요청 차단 (recovery/emergencyStop 제외)
+  // 2. cooldown: 동일 event_id 재요청 차단 (recovery 제외, 이벤트별 재정의 적용)
   if (event_id !== 'recovery') {
+    const cooldown = COOLDOWN_OVERRIDES[event_id] ?? COOLDOWN_MS;
     const last = lastExecuted.get(event_id);
-    if (last && Date.now() - last < COOLDOWN_MS) {
+    if (last && Date.now() - last < cooldown) {
       counters.cooldown_block_count++;
-      logEvent({ event_id, delayMs: null, status: 'cooldown', detail: `남은 ${COOLDOWN_MS - (Date.now() - last)}ms` });
+      logEvent({ event_id, delayMs: null, status: 'cooldown', detail: `남은 ${cooldown - (Date.now() - last)}ms` });
       return { allowed: false, reason: `cooldown 중: ${event_id}` };
     }
   }
